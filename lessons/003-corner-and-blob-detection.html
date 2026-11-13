@@ -95,6 +95,38 @@
 <p><strong>Laplacian of Gaussian (LoG):</strong> the Laplacian <code>∇²</code> measures second derivative (center-surround contrast). The normalized LoG, <code>σ² ∇²L</code>, gives strong extrema at blob centers when the filter scale matches blob size.</p>
 <p><strong>Difference of Gaussians (DoG):</strong> <code>D(x,y,σ,k)=L(x,y,kσ)-L(x,y,σ)</code> approximates the scale-normalized LoG efficiently (used in SIFT). Blobs are detected as local extrema in <code>(x,y,σ)</code> (space and scale), followed by refinement and thresholding/NMS-like selection.</p>
 
+
+<figure class="fig">
+  <canvas id="blob-scale" width="720" height="170" style="width:100%;max-width:720px;height:auto;border:1px solid var(--rule);background:var(--card);border-radius:6px"></canvas>
+  <div class="fig-controls">
+    <label>Blob radius <input id="bs-r" type="range" min="3" max="30" step="1" value="10"></label>
+    <label>LoG σ <input id="bs-s" type="range" min="1" max="20" step="0.5" value="6"></label>
+    <output id="bs-o"></output>
+  </div>
+  <figcaption><strong>Scale selection intuition.</strong> A blob produces the strongest center-surround (LoG/DoG) response when filter scale σ matches its characteristic size.</figcaption>
+</figure>
+<script>
+(function(){
+  var c=document.getElementById('blob-scale'); if(!c) return; var x=c.getContext('2d');
+  function draw(){
+    var r=+document.getElementById('bs-r').value, s=+document.getElementById('bs-s').value;
+    document.getElementById('bs-o').textContent='radius='+r+', σ='+s.toFixed(1);
+    x.clearRect(0,0,720,170);
+    var cx=140,cy=85; for(var yy=0;yy<170;yy++) for(var xx=0;xx<280;xx++){ var d=Math.hypot(xx-cx,yy-cy); var v=d<r?40:220; x.fillStyle='rgb('+v+','+v+','+v+')'; x.fillRect(xx,yy,1,1); }
+    x.fillStyle=getComputedStyle(document.body).color; x.font='12px ui-monospace,monospace'; x.fillText('blob', 110, 160);
+    // response curve across sigma for given radius
+    x.strokeStyle='rgba(120,120,120,0.5)'; x.strokeRect(320,20,360,120);
+    x.beginPath(); var peakS=r/1.4;
+    for(var i=0;i<=100;i++){ var sig=1+i*0.19; var resp=Math.exp(-Math.pow(Math.log(sig/(peakS||1)),2)/0.18); var px=320+i*3.6, py=140-resp*110; if(i==0)x.moveTo(px,py); else x.lineTo(px,py); }
+    x.strokeStyle='rgba(163,35,31,0.9)'; x.stroke();
+    var rx=320+((s-1)/19)*360, ry=140-Math.exp(-Math.pow(Math.log(s/(peakS||1)),2)/0.18)*110;
+    x.fillStyle='rgba(31,95,122,0.9)'; x.beginPath(); x.arc(rx,ry,5,0,Math.PI*2); x.fill();
+    x.fillStyle=getComputedStyle(document.body).color; x.fillText('response vs σ (peak near blob scale)', 360, 160);
+  }
+  ['bs-r','bs-s'].forEach(function(id){document.getElementById(id).addEventListener('input',draw);}); draw();
+})();
+</script>
+
 <h2>Worked examples</h2>
 
 <h3>Example 1 — Reading the structure tensor</h3>
@@ -130,6 +162,77 @@
     <details><summary>Answer</summary><p>Difference of Gaussians (difference between Gaussian-blurred images at nearby scales) is an efficient approximation to the scale-normalized Laplacian of Gaussian used to find space-scale extrema.</p></details>
   </li>
 </ol>
+
+
+<h2>Python in Colab: implement the lesson</h2>
+<p>Run in Google Colab. Computes image gradients, a Harris corner response (with NMS), and a simple multi-scale blob response (LoG approximation).</p>
+<pre><code>import numpy as np
+import matplotlib.pyplot as plt
+
+# Synthetic image: corners, edges, blobs
+H,W = 120,160
+img = np.ones((H,W), np.float32)*40
+img[20:90,20:70] = 220
+img[40:100,90:140] = 220
+yy,xx = np.mgrid[0:H,0:W]
+for (cy,cx,r,val) in [(30,120,6,20),(80,40,12,20),(60,130,18,240)]:
+    img[(yy-cy)**2 + (xx-cx)**2 < r*r] = val
+img = np.clip(img,0,255)
+
+def conv2(img,k):
+    kh,kw=k.shape; ph,pw=kh//2,kw//2
+    p=np.pad(img,((ph,ph),(pw,pw)),mode='edge'); out=np.zeros_like(img,np.float32)
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            out[i,j]=np.sum(p[i:i+kh,j:j+kw]*k)
+    return out
+
+sobelx = np.array([[-1,0,1],[-2,0,2],[-1,0,1]],np.float32)
+sobely = np.array([[-1,-2,-1],[0,0,0],[1,2,1]],np.float32)
+Ix = conv2(img, sobelx); Iy = conv2(img, sobely)
+
+# Harris
+Ixx,Iyy,Ixy = Ix*Ix, Iy*Iy, Ix*Iy
+box = np.ones((3,3),np.float32)
+Sxx,Syy,Sxy = conv2(Ixx,box), conv2(Iyy,box), conv2(Ixy,box)
+k=0.05
+det = Sxx*Syy - Sxy*Sxy
+trace = Sxx+Syy
+R = det - k*(trace**2)
+
+# NMS
+th = 0.1*R.max()
+corners = np.zeros_like(R,bool)
+for i in range(1,H-1):
+    for j in range(1,W-1):
+        if R[i,j]>th and R[i,j]==R[i-1:i+2,j-1:j+2].max():
+            corners[i,j]=True
+
+# Simple blob response: Laplacian of Gaussian approximation (LoG kernel) over scales
+def log_kernel(sigma, size=None):
+    if size is None: size = int(6*sigma+1)|1
+    r = size//2; y,x = np.mgrid[-r:r+1,-r:r+1]
+    s2=sigma*sigma
+    k = (x*x + y*y - 2*s2)/(s2*s2) * np.exp(-(x*x+y*y)/(2*s2))
+    return k - k.mean()
+
+scales=[2,4,6,8,10]
+responses=[conv2(img, log_kernel(s)) for s in scales]
+stack = np.stack([np.abs(r) for r in responses], axis=0)
+best = stack.max(axis=0)
+
+fig,axs = plt.subplots(2,3,figsize=(13,7))
+axs[0,0].imshow(img,cmap='gray'); axs[0,0].set_title('Image')
+mag = np.sqrt(Ix*Ix+Iy*Iy)
+axs[0,1].imshow(mag,cmap='magma'); axs[0,1].set_title('Gradient magnitude')
+axs[0,2].imshow(R,cmap='RdBu_r'); axs[0,2].scatter(np.where(corners)[1],np.where(corners)[0],s=10,c='cyan'); axs[0,2].set_title('Harris R + NMS')
+axs[1,0].imshow(np.abs(responses[1]),cmap='viridis'); axs[1,0].set_title('LoG response (σ=4)')
+axs[1,1].imshow(np.abs(responses[3]),cmap='viridis'); axs[1,1].set_title('LoG response (σ=8)')
+axs[1,2].imshow(best,cmap='viridis'); axs[1,2].set_title('Max over scales')
+for a in axs.ravel(): a.axis('off')
+plt.tight_layout(); plt.show()
+</code></pre>
+<p><strong>Try in Colab:</strong> adjust <code>k</code>/threshold, use Gaussian weighting in M, or find local extrema across (x,y,σ) in <code>stack</code> for true scale-space blob detection.</p>
 
 <h2>Labs &amp; next steps</h2>
 <ul>

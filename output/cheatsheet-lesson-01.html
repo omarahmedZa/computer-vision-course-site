@@ -1,0 +1,31 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Cheat Sheet 01 — Introduction to Computer Vision</title>
+<style>body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111;line-height:1.35;font-size:12px}h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;margin:14px 0 4px;border-bottom:1px solid #ccc}ul{margin:4px 0 4px 18px}code,pre{font-family:ui-monospace,Consolas,monospace;font-size:11px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.box{background:#f6f6f6;padding:8px;border-radius:4px}small{color:#555}</style></head><body>
+<h1>Lesson 01 — Introduction to Computer Vision</h1><small>Vision pipeline · images as signals · pixels/channels · color spaces · histograms · intensity transforms · convolution</small>
+<div class="grid"><div>
+<h2>Core ideas</h2><ul>
+<li><b>CV pipeline:</b> acquire → preprocess → extract/compute → model/estimate → decide.</li>
+<li><b>Image as signal:</b> digital image = spatial <b>sampling</b> (resolution H×W) + value <b>quantization</b> (bit depth, e.g. 8-bit 0–255). Grayscale H×W, color H×W×C.</li>
+<li><b>Channels/color:</b> RGB (display), Grayscale/luma (≈0.299R+0.587G+0.114B), HSV (hue/saturation/value) separates color from brightness.</li>
+<li><b>Histogram:</b> frequency of intensities (global tone/contrast), no spatial info.</li>
+<li><b>Point-wise transforms:</b> g=T(I). Linear: g=αI+β (contrast/brightness, clamp). Gamma: g=c·I^γ on [0,1].</li>
+</ul>
+<h2>Convolution/filtering</h2><ul>
+<li>Local weighted sum with kernel K: (I*K)(x,y)=ΣΣ I(x+i,y+j)K(i,j).</li>
+<li><b>Correlation vs convolution:</b> convolution flips kernel; same for symmetric kernels.</li>
+<li><b>Kernels:</b> box/Gaussian blur (smooth), sharpen (center-neighbor emphasis), Sobel/gradients (edges/changes).</li>
+<li>Handle borders (padding), stride, and dtype/range (clipping/overflow).</li>
+</ul>
+</div><div>
+<h2>Key formulas</h2><div class="box"><code>I(x,y) or I(x,y,c)</code> — image function/tensor<br><code>Y ≈ 0.299R + 0.587G + 0.114B</code><br><code>g = clip(αI + β)</code>, <code>g = c·I^γ</code><br><code>(I*K)(x,y)=Σ_i Σ_j I(x+i,y+j)K(i,j)</code></div>
+<h2>Worked intuition</h2><ul>
+<li>Box blur (1/9) preserves flat regions, pulls outliers toward neighbors.</li>
+<li>Sharpen example: 5·center − sum(neighbors) boosts local contrast (clamp to range).</li>
+<li>Asymmetric kernel: flip for convolution changes sign/orientation.</li>
+</ul>
+<h2>Pitfalls</h2><ul>
+<li>RGB vs BGR/channel order; [0,1] vs [0,255]; gamma/encoding assumptions.</li>
+<li>Overflow/wrap/saturation in 8-bit arithmetic.</li>
+<li>Forgetting convolution flip for directional kernels.</li>
+<li>Border padding and “histograms discard spatial layout”.</li>
+</ul>
+</div></div></body></html>

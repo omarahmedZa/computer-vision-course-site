@@ -100,6 +100,42 @@
 </ul>
 <p><strong>Standard practice:</strong> inverse warping + interpolation.</p>
 
+
+<figure class="fig">
+  <canvas id="warp-anim" width="720" height="200" style="width:100%;max-width:720px;height:auto;border:1px solid var(--rule);background:var(--card);border-radius:6px"></canvas>
+  <div class="fig-controls">
+    <label>Angle° <input id="wa-a" type="range" min="-45" max="45" step="1" value="20"></label>
+    <label>Shear <input id="wa-k" type="range" min="-0.6" max="0.6" step="0.05" value="0.2"></label>
+    <label>Scale <input id="wa-s" type="range" min="0.6" max="1.4" step="0.05" value="1"></label>
+    <button id="wa-play" type="button">Play</button>
+  </div>
+  <figcaption><strong>Transforming coordinates (animation/interaction).</strong> A grid deforms under an affine matrix; inverse mapping would sample the original for every output pixel to avoid holes.</figcaption>
+</figure>
+<script>
+(function(){
+  var c=document.getElementById('warp-anim'); if(!c) return; var x=c.getContext('2d'), t=0, play=false, raf;
+  function draw(){
+    var a=+document.getElementById('wa-a').value*Math.PI/180 + (play?Math.sin(t)*0.25:0);
+    var k=+document.getElementById('wa-k').value, s=+document.getElementById('wa-s').value;
+    var ca=Math.cos(a), sa=Math.sin(a);
+    var M=[s*ca, s*(k*ca-sa), 80, s*sa, s*(k*sa+ca), 20];
+    x.clearRect(0,0,720,200);
+    function map(px,py){return [M[0]*px+M[1]*py+M[2]+120, 160-(M[3]*px+M[4]*py+M[5])];}
+    x.strokeStyle='rgba(120,120,120,0.4)';
+    for(var i=0;i<=5;i++){ x.beginPath(); for(var j=0;j<=5;j++){var p=map(i*20,j*20); if(j==0)x.moveTo(p[0],p[1]); else x.lineTo(p[0],p[1]);} x.stroke(); }
+    for(var j=0;j<=5;j++){ x.beginPath(); for(var i=0;i<=5;i++){var p=map(i*20,j*20); if(i==0)x.moveTo(p[0],p[1]); else x.lineTo(p[0],p[1]);} x.stroke(); }
+    x.strokeStyle='rgba(163,35,31,0.9)'; x.lineWidth=2; x.beginPath();
+    [[0,0],[100,0],[100,100],[0,100],[0,0]].forEach(function(pt,i){var p=map(pt[0],pt[1]); if(i==0)x.moveTo(p[0],p[1]); else x.lineTo(p[0],p[1]);}); x.stroke(); x.lineWidth=1;
+    x.fillStyle=getComputedStyle(document.body).color; x.font='12px ui-monospace,monospace';
+    x.fillText('Affine map M (linear + translation). Inverse: for each output (x\',y\') sample input at M^{-1}(x\',y\').', 20, 190);
+    if(play){t+=0.03; raf=requestAnimationFrame(draw);}
+  }
+  ['wa-a','wa-k','wa-s'].forEach(function(id){document.getElementById(id).addEventListener('input',draw);});
+  document.getElementById('wa-play').addEventListener('click',function(){play=!play; this.textContent=play?'Pause':'Play'; if(play) draw();});
+  draw();
+})();
+</script>
+
 <h3>4) Interpolation (resampling)</h3>
 <p>When sampling at non-integer coordinates:</p>
 <table>
@@ -176,6 +212,86 @@
     </details>
   </li>
 </ol>
+
+
+<h2>Python in Colab: implement the lesson</h2>
+<p>Run in Google Colab. This shows homogeneous transforms, forward vs inverse warping, and nearest/bilinear interpolation on a synthetic image.</p>
+<pre><code>import numpy as np
+import matplotlib.pyplot as plt
+
+# Synthetic image
+H, W = 80, 100
+yy, xx = np.mgrid[0:H, 0:W]
+img = np.zeros((H,W), np.float32)
+img[(xx//10 + yy//10) % 2 == 0] = 200
+img[(xx//10 + yy//10) % 2 == 1] = 60
+img[20:50, 30:70] += 40
+img = np.clip(img, 0, 255)
+
+def make_M(angle_deg=20, tx=10, ty=5, sx=1.0, sy=1.0, shear=0.2):
+    a = np.deg2rad(angle_deg); c,sn = np.cos(a), np.sin(a)
+    R = np.array([[c,-sn,0],[sn,c,0],[0,0,1]])
+    S = np.array([[sx,0,0],[0,sy,0],[0,0,1]])
+    Sh= np.array([[1,shear,0],[0,1,0],[0,0,1]])
+    T = np.array([[1,0,tx],[0,1,ty],[0,0,1]])
+    return T @ R @ S @ Sh  # apply Sh,S,R,T in that order to point
+
+def sample(img, x, y, mode='bilinear'):
+    H,W = img.shape
+    if mode == 'nearest':
+        xi = np.clip(np.rint(x).astype(int), 0, W-1)
+        yi = np.clip(np.rint(y).astype(int), 0, H-1)
+        return img[yi, xi]
+    x0 = np.floor(x).astype(int); y0 = np.floor(y).astype(int)
+    x1 = x0+1; y1 = y0+1
+    x0c,x1c = np.clip(x0,0,W-1), np.clip(x1,0,W-1)
+    y0c,y1c = np.clip(y0,0,H-1), np.clip(y1,0,H-1)
+    wa = (x1-x)*(y1-y); wb = (x-x0)*(y1-y); wc = (x1-x)*(y-y0); wd = (x-x0)*(y-y0)
+    Ia = img[y0c,x0c]; Ib = img[y0c,x1c]; Ic = img[y1c,x0c]; Id = img[y1c,x1c]
+    return wa*Ia + wb*Ib + wc*Ic + wd*Id
+
+M = make_M(angle_deg=25, tx=5, ty=0, shear=0.15)
+Minv = np.linalg.inv(M)
+
+# Forward warping (demonstrates holes)
+fwd = np.full_like(img, np.nan)
+H,W = img.shape
+ys, xs = np.mgrid[0:H,0:W]
+ones = np.ones_like(xs)
+coords = np.stack([xs,ys,ones], axis=0).reshape(3,-1)
+dst = (M @ coords)
+xd = np.rint(dst[0]/dst[2]).astype(int); yd = np.rint(dst[1]/dst[2]).astype(int)
+for i in range(xs.size):
+    xdi, ydi = xd[i], yd[i]
+    if 0 <= xdi < W and 0 <= ydi < H:
+        fwd[ydi, xdi] = img.flat[i]
+
+# Inverse warping
+inv_nn = np.zeros_like(img); inv_bl = np.zeros_like(img)
+Xd, Yd = np.mgrid[0:H,0:W]
+ones = np.ones_like(Xd)
+dst = np.stack([Xd,Yd,ones], axis=0).reshape(3,-1)
+src = (Minv @ dst)
+xs_s = src[0]/src[2]; ys_s = src[1]/src[2]
+valid = (xs_s>=0)&(xs_s<=W-1)&(ys_s>=0)&(ys_s<=H-1)
+inv_nn.flat[valid] = sample(img, xs_s[valid], ys_s[valid], 'nearest')
+inv_bl.flat[valid] = sample(img, xs_s[valid], ys_s[valid], 'bilinear')
+
+fig,axs = plt.subplots(1,4,figsize=(14,3.5))
+axs[0].imshow(img,cmap='gray',vmin=0,vmax=255); axs[0].set_title('Source')
+axs[1].imshow(np.nan_to_num(fwd,nan=30),cmap='gray',vmin=0,vmax=255); axs[1].set_title('Forward (holes)')
+axs[2].imshow(inv_nn,cmap='gray',vmin=0,vmax=255); axs[2].set_title('Inverse + nearest')
+axs[3].imshow(inv_bl,cmap='gray',vmin=0,vmax=255); axs[3].set_title('Inverse + bilinear')
+for a in axs: a.axis('off')
+plt.tight_layout(); plt.show()
+
+# Composition order demo
+p = np.array([1,0,1.0])
+T = np.array([[1,0,3],[0,1,0],[0,0,1]])
+R = np.array([[0,-1,0],[1,0,0],[0,0,1]]) # 90 deg
+print('T then R:', (R@T@p)[:2], '  R then T:', (T@R@p)[:2])
+</code></pre>
+<p><strong>Try in Colab:</strong> replace the affine matrix with a homography (set bottom row to [h31,h32,1] and divide by w), or warp a real image with <code>plt.imread</code>.</p>
 
 <h2>Labs &amp; next steps</h2>
 <ul>

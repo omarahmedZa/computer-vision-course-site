@@ -77,6 +77,41 @@
 <p><strong>Invariances (by design, approximate):</strong> scale (detect at characteristic σ, describe in scale-normalized neighborhood), rotation (canonical orientation), illumination (gradients + normalization reduce sensitivity to additive/multiplicative changes). <strong>Not fully invariant to:</strong> large affine/projective viewpoint change, severe non-rigid deformation, occlusion, or extreme lighting/nonlinear effects — but often robust enough for matching with geometric verification.</p>
 <p><strong>Matching:</strong> compare descriptors (e.g. Euclidean distance in 128-D). Nearest-neighbor alone is ambiguous in repetitive textures; Lowe’s <strong>ratio test</strong> keeps a match if <code>d1/d2 &lt; τ</code> (e.g. 0.7–0.8) where <code>d1,d2</code> are distances to best and second-best matches — a distinctive match is much closer than the runner-up. Final reliability typically comes from geometric consistency (e.g. RANSAC, Lessons 5 &amp; 7).</p>
 
+
+<figure class="fig">
+  <canvas id="sift-anim" width="720" height="180" style="width:100%;max-width:720px;height:auto;border:1px solid var(--rule);background:var(--card);border-radius:6px"></canvas>
+  <div class="fig-controls"><button id="sift-play" type="button">Play orientation/descriptor steps</button> <output id="sift-o"></output></div>
+  <figcaption><strong>SIFT stages (animated).</strong> Detect at scale, assign dominant orientation, then pool gradient orientations into spatial histograms (descriptor).</figcaption>
+</figure>
+<script>
+(function(){
+  var c=document.getElementById('sift-anim'); if(!c) return; var x=c.getContext('2d'), step=0, play=false, raf, tick=0;
+  function draw(){
+    x.clearRect(0,0,720,180);
+    var labels=['1) Scale-space extremum','2) Canonical orientation','3) 4x4 cells × 8-bin histograms'];
+    document.getElementById('sift-o').textContent=labels[step];
+    x.fillStyle=getComputedStyle(document.body).color; x.font='13px ui-monospace,monospace'; x.fillText(labels[step],20,20);
+    // patch
+    x.strokeStyle='rgba(120,120,120,0.6)'; x.strokeRect(40,40,100,100);
+    x.fillStyle='rgba(31,95,122,0.15)'; x.beginPath(); x.arc(90,90,18,0,Math.PI*2); x.fill();
+    if(step>=1){ x.strokeStyle='rgba(163,35,31,0.9)'; x.lineWidth=2; x.beginPath(); x.moveTo(90,90); x.lineTo(130,60); x.stroke(); x.lineWidth=1; x.fillText('dominant orientation', 150, 70); }
+    // hist grid
+    var ox=260; x.strokeStyle='rgba(120,120,120,0.5)';
+    for(var i=0;i<=4;i++){ x.beginPath(); x.moveTo(ox+i*30,40); x.lineTo(ox+i*30,160); x.stroke(); x.beginPath(); x.moveTo(ox,40+i*30); x.lineTo(ox+120,40+i*30); x.stroke(); }
+    if(step>=2){
+      for(var r=0;r<4;r++) for(var cc=0;cc<4;cc++){
+        var cx=ox+cc*30+15, cy=40+r*30+15;
+        for(var b=0;b<8;b++){ var ang=b*Math.PI/4; var len=4+((r*3+cc+b)%5)*2; x.strokeStyle='rgba(163,35,31,0.7)'; x.beginPath(); x.moveTo(cx,cy); x.lineTo(cx+Math.cos(ang)*len, cy+Math.sin(ang)*len); x.stroke(); }
+      }
+      x.fillStyle=getComputedStyle(document.body).color; x.fillText('→ 128-D normalized descriptor', 420, 100);
+    }
+    if(play){ tick++; if(tick%50==0) step=(step+1)%3; raf=requestAnimationFrame(draw); }
+  }
+  document.getElementById('sift-play').addEventListener('click',function(){play=!play; this.textContent=play?'Pause':'Play orientation/descriptor steps'; if(play){tick=0; draw();}});
+  draw();
+})();
+</script>
+
 <h2>Worked examples</h2>
 
 <h3>Example 1 — Why canonical orientation helps</h3>
@@ -108,6 +143,90 @@
     <details><summary>Answer</summary><p>It compares the best match distance to the second-best; a low ratio indicates a distinctive, unambiguous match, filtering out matches that are only marginally better than alternatives (common in repetitive patterns).</p></details>
   </li>
 </ol>
+
+
+<h2>Python in Colab: implement the lesson</h2>
+<p>Run in Google Colab. This demo shows DoG scale-space extrema (simplified), orientation histograms, a toy 128-D SIFT-like descriptor, and ratio-test matching.</p>
+<pre><code>import numpy as np
+import matplotlib.pyplot as plt
+
+def gaussian_kernel(s, size=None):
+    if size is None: size=int(6*s+1)|1
+    r=size//2; y,x=np.mgrid[-r:r+1,-r:r+1]
+    k=np.exp(-(x*x+y*y)/(2*s*s)); return k/k.sum()
+
+def conv2(img,k):
+    kh,kw=k.shape; ph,pw=kh//2,kw//2
+    p=np.pad(img,((ph,ph),(pw,pw)),mode='edge'); out=np.zeros_like(img,np.float32)
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]): out[i,j]=np.sum(p[i:i+kh,j:j+kw]*k)
+    return out
+
+# Synthetic image
+H,W=96,96
+yy,xx=np.mgrid[0:H,0:W]
+img=np.full((H,W),60,np.float32)
+img[20:70,25:40]=200; img[30:45,35:75]=200
+img[(yy-70)**2+(xx-70)**2<10*10]=220
+
+# DoG pyramid (one octave, few scales)
+sigmas=[1.0,1.6,2.56,4.096]
+Gs=[conv2(img, gaussian_kernel(s)) for s in sigmas]
+DoGs=[Gs[i+1]-Gs[i] for i in range(len(Gs)-1)]
+
+# Simplified keypoint: extrema in middle DoG
+D=DoGs[1]; prevD, nextD=DoGs[0], DoGs[2]
+kps=[]
+for i in range(1,H-1):
+    for j in range(1,W-1):
+        patch=np.stack([prevD[i-1:i+2,j-1:j+2], D[i-1:i+2,j-1:j+2], nextD[i-1:i+2,j-1:j+2]])
+        v=D[i,j]
+        if v==patch.max() and v>5: kps.append((i,j))
+        if v==patch.min() and v<-5: kps.append((i,j))
+
+# Gradients for orientation/descriptor
+sobelx=np.array([[-1,0,1],[-2,0,2],[-1,0,1]],np.float32)
+sobely=np.array([[-1,-2,-1],[0,0,0],[1,2,1]],np.float32)
+Ix=conv2(Gs[1],sobelx); Iy=conv2(Gs[1],sobely)
+mag=np.sqrt(Ix*Ix+Iy*Iy); ori=(np.arctan2(Iy,Ix)+2*np.pi)%(2*np.pi)
+
+def descriptor(i,j):
+    # toy 4x4 cells x 8 bins = 128
+    desc=np.zeros(128,np.float32)
+    for cy in range(4):
+        for cx in range(4):
+            y0=i-8+cy*4; x0=j-8+cx*4
+            hist=np.zeros(8,np.float32)
+            for dy in range(4):
+                for dx in range(4):
+                    y=y0+dy; x=x0+dx
+                    if y<0 or x<0 or y>=H or x>=W: continue
+                    b=int((ori[y,x]/(2*np.pi))*8)%8
+                    hist[b]+=mag[y,x]
+            desc[(cy*4+cx)*8:(cy*4+cx+1)*8]=hist
+    n=np.linalg.norm(desc)+1e-6; desc/=n
+    desc=np.clip(desc,0,0.2); desc/= (np.linalg.norm(desc)+1e-6)
+    return desc
+
+# Take a keypoint and create a "second image" rotated/shifted version of its patch conceptually
+if not kps: kps=[(40,32),(70,70)]
+p=kps[0]; d1=descriptor(p[0],p[1])
+# simulate match candidate: similar vs different
+d2=d1.copy(); d2[::3]*=0.9; d2/=np.linalg.norm(d2)+1e-6
+d3=np.random.rand(128).astype(np.float32); d3/=np.linalg.norm(d3)
+def l2(a,b): return np.linalg.norm(a-b)
+dist12=l2(d1,d2); dist13=l2(d1,d3)
+ratio = min(dist12,dist13)/max(dist12,dist13)
+
+fig,axs=plt.subplots(1,3,figsize=(13,4))
+axs[0].imshow(img,cmap='gray'); axs[0].scatter([p[1] for p in kps],[p[0] for p in kps],s=12,c='cyan'); axs[0].set_title('DoG keypoints (simplified)')
+axs[1].imshow(DoGs[1],cmap='RdBu_r'); axs[1].set_title('DoG response')
+axs[2].bar(np.arange(128),d1,width=1.0); axs[2].set_title('Toy 128-D descriptor')
+for a in axs[:2]: a.axis('off')
+plt.tight_layout(); plt.show()
+print('dist(similar)=%.3f dist(different)=%.3f ratio=%.3f' % (dist12,dist13,ratio))
+</code></pre>
+<p><strong>Try in Colab:</strong> implement full 26-neighbor extrema, add subpixel localization/contrast filtering, compute dominant orientation from a real gradient histogram, and use OpenCV <code>cv2.SIFT_create()</code> to compare.</p>
 
 <h2>Labs &amp; next steps</h2>
 <ul>

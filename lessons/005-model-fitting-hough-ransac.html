@@ -52,6 +52,30 @@
 <h3>4) Inliers, outliers, and parameter spaces</h3>
 <p><strong>Inliers</strong> fit the true underlying model within noise/threshold; <strong>outliers</strong> do not (mismatches, wrong structures, clutter). Hough localizes dense support in parameter space; RANSAC explicitly searches for the largest self-consistent subset. Both assume the correct model explains many points simultaneously.</p>
 
+
+<figure class="fig">
+  <canvas id="ransac-anim" width="720" height="200" style="width:100%;max-width:720px;height:auto;border:1px solid var(--rule);background:var(--card);border-radius:6px"></canvas>
+  <div class="fig-controls"><button id="ra-step" type="button">RANSAC iteration</button> <button id="ra-reset" type="button">Reset</button> <output id="ra-o"></output></div>
+  <figcaption><strong>RANSAC animation.</strong> Each iteration samples 2 points, fits a line, and counts inliers. The best consensus model (thick) wins over outliers.</figcaption>
+</figure>
+<script>
+(function(){
+  var c=document.getElementById('ransac-anim'); if(!c) return; var x=c.getContext('2d'), pts=[], best=null, it=0;
+  function gen(){ pts=[]; for(var i=0;i<18;i++){var px=40+i*34; pts.push({x:px,y:150-0.35*px+(Math.random()*8-4),inl:true});}
+    for(var i=0;i<7;i++) pts.push({x:40+Math.random()*620,y:20+Math.random()*150,inl:false}); best=null; it=0; draw(); }
+  function fit(a,b){var A=b.y-a.y,B=a.x-b.x,C=b.x*a.y-a.x*b.y;var n=Math.hypot(A,B)||1;return{A:A/n,B:B/n,C:C/n,a:a,b:b};}
+  function dist(m,p){return Math.abs(m.A*p.x+m.B*p.y+m.C);} 
+  function step(){ if(pts.length<2) return; var i=(Math.random()*pts.length)|0,j=(Math.random()*pts.length)|0; if(i==j) j=(j+1)%pts.length; var m=fit(pts[i],pts[j]); var inl=pts.filter(function(p){return dist(m,p)<10;}); it++; if(!best||inl.length>best.inl.length) best={m:m,inl:inl}; draw(m,inl); }
+  function draw(cur,curInl){ x.clearRect(0,0,720,200);
+    function line(m,col,w){x.strokeStyle=col;x.lineWidth=w; x.beginPath(); for(var px=0;px<720;px+=4){var py=-(m.A*px+m.C)/(m.B||1e-6); if(px==0)x.moveTo(px,py); else x.lineTo(px,py);} x.stroke(); x.lineWidth=1;}
+    if(best) line(best.m,'rgba(31,95,122,0.5)',5); if(cur) line(cur,'rgba(163,35,31,0.5)',1.5);
+    pts.forEach(function(p){var isB=best&&best.inl.indexOf(p)>=0, isC=curInl&&curInl.indexOf(p)>=0; x.fillStyle=isB?'#1f5f7a':(isC?'#a3231f':'#888'); x.beginPath(); x.arc(p.x,p.y,3.5,0,Math.PI*2); x.fill();});
+    document.getElementById('ra-o').textContent='iter '+it+(best?('  best inliers '+best.inl.length+'/'+pts.length):'');
+  }
+  document.getElementById('ra-step').addEventListener('click',step); document.getElementById('ra-reset').addEventListener('click',gen); gen();
+})();
+</script>
+
 <h2>Worked examples</h2>
 
 <h3>Example 1 — Hough voting intuition</h3>
@@ -84,6 +108,74 @@
     <details><summary>Answer</summary><p>It increases, because the probability <code>w^s</code> that a minimal sample contains only inliers drops, so more trials are required to be likely to draw at least one all-inlier sample.</p></details>
   </li>
 </ol>
+
+
+<h2>Python in Colab: implement the lesson</h2>
+<p>Run in Google Colab. Implements a simple Hough line accumulator and RANSAC line fitting on noisy points with outliers.</p>
+<pre><code>import numpy as np
+import matplotlib.pyplot as plt
+
+# Generate points: inliers on a line + outliers
+rng = np.random.default_rng(0)
+x = np.linspace(0, 10, 30)
+y_true = 0.6*x + 1.5
+y_in = y_true + rng.normal(0, 0.25, size=x.size)
+x_out = rng.uniform(0,10,12); y_out = rng.uniform(0,8,12)
+X = np.concatenate([x, x_out]); Y = np.concatenate([y_in, y_out])
+
+# --- Hough transform (rho = x cosθ + y sinθ) ---
+thetas = np.deg2rad(np.arange(-90, 90))
+diag = int(np.ceil(np.hypot(X.max()-X.min(), Y.max()-Y.min()))) + 10
+rhos = np.arange(-diag, diag+1)
+acc = np.zeros((len(rhos), len(thetas)), dtype=np.int32)
+for xi, yi in zip(X,Y):
+    rho_vals = (xi*np.cos(thetas) + yi*np.sin(thetas)).astype(int)
+    for ti, r in enumerate(rho_vals):
+        ri = r + diag
+        if 0 <= ri < len(rhos): acc[ri, ti] += 1
+peak = np.unravel_index(np.argmax(acc), acc.shape)
+rho_p, theta_p = rhos[peak[0]], thetas[peak[1]]
+
+# --- RANSAC line fit (y = m*x + c form for demo) ---
+def fit_line(p1, p2):
+    (x1,y1),(x2,y2)=p1,p2
+    if abs(x2-x1) < 1e-9: return None
+    m=(y2-y1)/(x2-x1); c=y1-m*x1; return m,c
+
+def ransac(X,Y, iters=200, thresh=0.35):
+    best=None; best_inliers=None
+    pts=list(zip(X,Y))
+    for _ in range(iters):
+        i,j = rng.choice(len(pts), 2, replace=False)
+        model = fit_line(pts[i], pts[j])
+        if model is None: continue
+        m,c = model
+        err = np.abs(m*X - Y + c)/np.sqrt(m*m+1)
+        inliers = err < thresh
+        if best_inliers is None or inliers.sum() > best_inliers.sum():
+            best, best_inliers = model, inliers
+    # refit on inliers
+    Xi,Yi = X[best_inliers], Y[best_inliers]
+    A = np.c_[Xi, np.ones_like(Xi)]
+    m,c = np.linalg.lstsq(A,Yi,rcond=None)[0]
+    return (m,c), best_inliers
+
+(mr,cr), inliers = ransac(X,Y)
+
+fig,axs = plt.subplots(1,2,figsize=(12,4.5))
+axs[0].imshow(acc, cmap='hot', aspect='auto', extent=[np.rad2deg(thetas[0]), np.rad2deg(thetas[-1]), rhos[0], rhos[-1]])
+axs[0].set_title('Hough accumulator (peak marked)')
+axs[0].plot(np.rad2deg(theta_p), rho_p, 'c+', ms=12)
+axs[1].scatter(X[~inliers], Y[~inliers], c='gray', label='outliers')
+axs[1].scatter(X[inliers], Y[inliers], c='#1f5f7a', label='inliers')
+xs = np.linspace(0,10,100)
+axs[1].plot(xs, mr*xs+cr, 'r', lw=2, label='RANSAC fit')
+axs[1].legend(); axs[1].set_title('RANSAC line fitting')
+plt.tight_layout(); plt.show()
+print('Hough peak theta(deg)=%.1f rho=%.2f' % (np.rad2deg(theta_p), rho_p))
+print('RANSAC inliers: %d/%d  model: y=%.3fx+%.3f' % (inliers.sum(), len(X), mr, cr))
+</code></pre>
+<p><strong>Try in Colab:</strong> detect multiple lines by suppressing peaks iteratively, fit circles (3D accumulator or RANSAC), or use <code>cv2.HoughLines</code> and a homography RANSAC on feature matches.</p>
 
 <h2>Labs &amp; next steps</h2>
 <ul>

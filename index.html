@@ -222,13 +222,39 @@
 </section>
 
 <section class="unit" id="downloads">
-  <div class="unit-head"><h3>Downloads</h3><span class="meta">placeholders</span></div>
+  <div class="unit-head"><h3>Downloads</h3><span class="meta">per lesson</span></div>
   <div class="table-wrap"><table>
-    <tr><th>Item</th><th>Notes</th></tr>
-    <tr><td>Cheat sheets</td><td>Placeholder — see <a href="output/README.md">output/README.md</a> (no compiled binaries fabricated).</td></tr>
-    <tr><td>Slide decks</td><td>Placeholder — see <a href="decks/README.md">decks/README.md</a>.</td></tr>
-    <tr><td>Curriculum</td><td><a href="CURRICULUM.md">CURRICULUM.md</a> (modules, prerequisites, objectives).</td></tr>
+    <tr><th>Lesson</th><th>Cheat sheet (PDF)</th><th>Deck (PPTX)</th></tr>
+    <tr><td>01 — Introduction to Computer Vision</td><td><a href="output/cheatsheet-lesson-01.pdf">cheatsheet-lesson-01.pdf</a></td><td><a href="decks/lesson-01.pptx">lesson-01.pptx</a></td></tr>
+    <tr><td>02 — Geometric Transformations &amp; Image Warping</td><td><a href="output/cheatsheet-lesson-02.pdf">cheatsheet-lesson-02.pdf</a></td><td><a href="decks/lesson-02.pptx">lesson-02.pptx</a></td></tr>
+    <tr><td>03 — Corner and Blob Detection</td><td><a href="output/cheatsheet-lesson-03.pdf">cheatsheet-lesson-03.pdf</a></td><td><a href="decks/lesson-03.pptx">lesson-03.pptx</a></td></tr>
+    <tr><td>04 — Feature Detectors/Descriptors (SIFT)</td><td><a href="output/cheatsheet-lesson-04.pdf">cheatsheet-lesson-04.pdf</a></td><td><a href="decks/lesson-04.pptx">lesson-04.pptx</a></td></tr>
+    <tr><td>05 — Model Fitting (Hough Transform, RANSAC)</td><td><a href="output/cheatsheet-lesson-05.pdf">cheatsheet-lesson-05.pdf</a></td><td><a href="decks/lesson-05.pptx">lesson-05.pptx</a></td></tr>
+    <tr><td>06 — Image Blending</td><td><a href="output/cheatsheet-lesson-06.pdf">cheatsheet-lesson-06.pdf</a></td><td><a href="decks/lesson-06.pptx">lesson-06.pptx</a></td></tr>
+    <tr><td>07 — Image Registration</td><td><a href="output/cheatsheet-lesson-07.pdf">cheatsheet-lesson-07.pdf</a></td><td><a href="decks/lesson-07.pptx">lesson-07.pptx</a></td></tr>
+    <tr><td>08 — Deep Learning–Based Computer Vision</td><td><a href="output/cheatsheet-lesson-08.pdf">cheatsheet-lesson-08.pdf</a></td><td><a href="decks/lesson-08.pptx">lesson-08.pptx</a></td></tr>
   </table></div>
+</section>
+
+<section class="unit" id="curriculum">
+  <div class="unit-head"><h3>Curriculum</h3><span class="meta">modules · prerequisites · objectives</span></div>
+  <p style="font-size:.92rem;color:var(--ink-soft)">8 lessons, 4 units, 4 checkpoints, plus companion interactive labs. Ordered so each topic builds on the image, geometry, and feature foundations it needs. <strong>Standing rule:</strong> later lessons reference earlier concepts rather than re-teaching them from scratch.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Unit</th><th>#</th><th>Topic</th><th>Objective — you can…</th><th>Prereq</th><th>Min</th></tr>
+    <tr><td>1 · Images as signals</td><td class="num">1</td><td>Introduction to Computer Vision</td><td>Explain what CV is, describe the vision pipeline, and represent images as sampled/quantized signals with correct pixel, channel, color-space, histogram, and convolution operations.</td><td>—</td><td class="num">18</td></tr>
+    <tr><td colspan="6" style="font-size:.85rem;color:var(--ink-soft)">Labs: L1a Convolution &amp; kernels · L1b Intensity transforms &amp; histograms · Checkpoint 1</td></tr>
+    <tr><td>2 · Geometry and warping</td><td class="num">2</td><td>Geometric Transformations &amp; Image Warping</td><td>Model 2D geometric deformations with transformation matrices and restore/warp images using forward vs inverse mapping with interpolation.</td><td>1</td><td class="num">16</td></tr>
+    <tr><td colspan="6" style="font-size:.85rem;color:var(--ink-soft)">Labs: L2a Transform matrices &amp; composition · L2b Forward vs inverse warping &amp; interpolation · Checkpoint 2</td></tr>
+    <tr><td rowspan="3">3 · Local features and robust fitting</td><td class="num">3</td><td>Corner and Blob Detection</td><td>Explain why features matter and detect corners/blobs using gradients, the Harris structure tensor, NMS, and scale-space (LoG/DoG) responses.</td><td>1</td><td class="num">15</td></tr>
+    <tr><td class="num">4</td><td>Feature Detectors/Descriptors (SIFT)</td><td>Describe SIFT’s pipeline from scale-space extrema to descriptors and explain its invariances and basic matching.</td><td>3</td><td class="num">16</td></tr>
+    <tr><td class="num">5</td><td>Model Fitting (Hough Transform, RANSAC)</td><td>Fit geometric models with Hough voting and robustly estimate models with RANSAC under outliers.</td><td>1, 3</td><td class="num">15</td></tr>
+    <tr><td colspan="6" style="font-size:.85rem;color:var(--ink-soft)">Labs: L3a Harris response &amp; NMS · L4a SIFT descriptor &amp; matching intuition · L5a Hough voting · L5b RANSAC line fitting · Checkpoint 3</td></tr>
+    <tr><td rowspan="3">4 · Composition, alignment, and learning</td><td class="num">6</td><td>Image Blending</td><td>Combine overlapping images smoothly using alpha/feathering and multi-scale (pyramid/Laplacian) blending while reasoning about seams and exposure differences.</td><td>1, 2</td><td class="num">14</td></tr>
+    <tr><td class="num">7</td><td>Image Registration</td><td>Explain and execute the end-to-end registration pipeline: detect/match features, estimate transforms robustly, warp/resample, and evaluate alignment.</td><td>2, 3, 4, 5</td><td class="num">16</td></tr>
+    <tr><td class="num">8</td><td>Deep Learning–Based Computer Vision</td><td>Connect classical CV to learned representations and explain introductory CNN mechanics and training, relating DL to the classical tasks above.</td><td>1, 3–7</td><td class="num">17</td></tr>
+    <tr><td colspan="6" style="font-size:.85rem;color:var(--ink-soft)">Labs: L6a Alpha, feathering &amp; pyramids · L7a End-to-end registration pipeline · L8a Convolutional features &amp; receptive fields · L8b Classical pipelines to deep models · Checkpoint 4</td></tr>
+  </table></div>
+  <p style="font-size:.85rem;color:var(--ink-soft);margin-top:.6rem">Full details: <a href="CURRICULUM.md">CURRICULUM.md</a></p>
 </section>
 
 <div class="next">

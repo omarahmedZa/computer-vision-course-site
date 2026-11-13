@@ -1,0 +1,29 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Cheat Sheet 08 — Deep Learning–Based Computer Vision</title>
+<style>body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111;line-height:1.35;font-size:12px}h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;margin:14px 0 4px;border-bottom:1px solid #ccc}ul{margin:4px 0 4px 18px}code{font-family:ui-monospace,Consolas,monospace;font-size:11px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.box{background:#f6f6f6;padding:8px;border-radius:4px}small{color:#555}</style></head><body>
+<h1>Lesson 08 — Deep Learning–Based Computer Vision</h1><small>Learned representations · CNN fundamentals · training basics · classical↔DL connections</small>
+<div class="grid"><div>
+<h2>Core ideas</h2><ul>
+<li><b>Shift:</b> hand-crafted features/pipelines → representations learned from data for a task.</li>
+<li><b>CNNs:</b> learn hierarchies of local filters with weight sharing (locality/translation structure). Early layers: edges/textures; deeper: larger, semantic patterns.</li>
+<li><b>Building blocks:</b> convolution (feature maps), nonlinearity (e.g. ReLU), padding/stride, pooling (downsample/context), normalization/regularization (as used).</li>
+<li><b>Receptive field:</b> input region affecting a unit; grows with depth/stride/pooling → composition from local to global.</li>
+<li><b>Training:</b> define loss (task-dependent), optimize by gradient descent/backprop; monitor generalization (train/val/test), address overfitting (data, augmentation, regularization).</li>
+</ul>
+</div><div>
+<h2>Classical ↔ DL</h2><ul>
+<li>Convolution/filters (L1): learned kernels vs fixed (Sobel/Gaussian).</li>
+<li>Geometry/warping (L2,L7): spatial transformers, augmentation, but explicit warping/RANSAC still enforce geometry.</li>
+<li>Features/matching (L3–L5): learned detectors/descriptors/matchers + geometric verification.</li>
+<li>Blending/registration: learned alignment/compositing exist; photometric/geometric principles remain.</li>
+</ul>
+<h2>When classical remains valuable</h2><ul>
+<li>Limited data/labels, need interpretability or guarantees.</li>
+<li>Well-defined geometry/physics (calibration, planar transforms, robust fitting).</li>
+<li>Resource constraints; hybrid pipelines (learned perception + model-based geometry).</li>
+</ul>
+<h2>Pitfalls</h2><ul>
+<li>CNNs learn correlations, not guaranteed understanding; vulnerable to distribution shift.</li>
+<li>Data/labels/evaluation quality drive results.</li>
+<li>Don’t ignore explicit geometric constraints when they apply.</li>
+</ul>
+</div></div></body></html>

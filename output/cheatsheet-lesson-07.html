@@ -1,0 +1,30 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Cheat Sheet 07 — Image Registration</title>
+<style>body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111;line-height:1.35;font-size:12px}h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;margin:14px 0 4px;border-bottom:1px solid #ccc}ul{margin:4px 0 4px 18px}code{font-family:ui-monospace,Consolas,monospace;font-size:11px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.box{background:#f6f6f6;padding:8px;border-radius:4px}small{color:#555}</style></head><body>
+<h1>Lesson 07 — Image Registration</h1><small>Alignment pipeline · feature matching · transform estimation · warping/resampling · similarity measures</small>
+<div class="grid"><div>
+<h2>End-to-end pipeline</h2><ul>
+<li><b>1) Detect</b> features in both images (corners/blobs/keypoints).</li>
+<li><b>2) Describe &amp; match</b> (descriptor distance, ratio test) → tentative correspondences (with outliers).</li>
+<li><b>3) Choose motion model:</b> translation/similarity/affine (6 dof, parallel lines preserved)/homography (8 dof, planar perspective).</li>
+<li><b>4) Estimate T robustly:</b> RANSAC (sample minimal set → fit → count inliers → keep best → refit).</li>
+<li><b>5) Warp/resample:</b> inverse warp moving image into target frame with interpolation.</li>
+<li><b>6) Evaluate:</b> reprojection residuals, overlays/difference, or similarity metrics.</li>
+</ul>
+<h2>Similarity measures</h2><ul>
+<li><b>SSD/SAD:</b> intensity differences (sensitive to photometric change).</li>
+<li><b>NCC:</b> more robust to linear brightness/contrast shifts.</li>
+<li><b>Mutual Information:</b> statistical dependence, useful across modalities.</li>
+</ul>
+</div><div>
+<h2>Key points</h2><div class="box">Affine: ≥3 point pairs. Homography (DLT): ≥4 pairs (planar/pure-rotation cases).<br>Inverse warping: sample source at T^{-1}(p') for every target pixel.</div>
+<h2>Failure modes</h2><ul>
+<li>Too few/poorly distributed/wrong matches; weak texture or little overlap.</li>
+<li>Wrong motion model (e.g. homography for non-planar parallax).</li>
+<li>Photometric differences misleading intensity measures.</li>
+<li>Out-of-bounds/poor interpolation artifacts.</li>
+</ul>
+<h2>Pitfalls</h2><ul>
+<li>Never trust raw matches without robust estimation/geometric checks.</li>
+<li>Good global score can hide local misalignment — inspect overlays/residuals.</li>
+</ul>
+</div></div></body></html>

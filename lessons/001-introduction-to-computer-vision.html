@@ -64,6 +64,41 @@
 </ul>
 <p>Think of the image as a matrix/tensor: grayscale <code>H×W</code>, color often <code>H×W×3</code>. Each element is a sample of radiance/reflectance-related information after sensor and encoding choices.</p>
 
+<figure class="fig">
+  <canvas id="sq-demo" width="700" height="180" style="width:100%;max-width:700px;height:auto;border:1px solid var(--rule);background:var(--card);border-radius:6px"></canvas>
+  <div class="fig-controls">
+    <label>Samples <input id="sq-s" type="range" min="6" max="80" step="1" value="24"></label>
+    <label>Bits <input id="sq-b" type="range" min="1" max="8" step="1" value="4"></label>
+    <output id="sq-o"></output>
+  </div>
+  <figcaption><strong>Sampling and quantization.</strong> Fewer samples lose spatial detail (coarser steps in x); fewer bits reduce value precision (banding/level steps in intensity).</figcaption>
+</figure>
+<script>
+(function(){
+  var c=document.getElementById('sq-demo'); if(!c) return; var x=c.getContext('2d');
+  function f(t){ return 0.55+0.35*Math.sin(t*2*Math.PI*1.2)+0.08*Math.sin(t*2*Math.PI*6.5); }
+  function draw(){
+    var S=+document.getElementById('sq-s').value, B=+document.getElementById('sq-b').value, L=Math.pow(2,B);
+    document.getElementById('sq-o').textContent=S+' samples, '+B+' bits ('+L+' levels)';
+    x.clearRect(0,0,700,180); var pad=30,w=640,h=120;
+    x.strokeStyle='rgba(120,120,120,0.5)'; x.beginPath(); for(var i=0;i<=200;i++){var t=i/200,v=f(t); var px=pad+t*w,py=pad+(1-v)*h; if(i==0)x.moveTo(px,py); else x.lineTo(px,py);} x.stroke();
+    x.fillStyle='rgba(163,35,31,0.8)'; x.strokeStyle='rgba(163,35,31,0.9)';
+    var prev=null;
+    for(var i=0;i<S;i++){var t=S==1?0:i/(S-1), v=f(t); var q=Math.round(v*(L-1))/(L-1); var px=pad+t*w, pyc=pad+(1-v)*h, pyq=pad+(1-q)*h;
+      x.beginPath(); x.arc(px,pyc,3,0,Math.PI*2); x.fill();
+      x.fillRect(px-2,pyq-2,4,4);
+      if(prev){ x.beginPath(); x.moveTo(prev[0],prev[1]); x.lineTo(px,prev[1]); x.lineTo(px,pyq); x.stroke(); }
+      prev=[px,pyq];
+    }
+    x.fillStyle=getComputedStyle(document.body).color; x.font='12px ui-monospace,monospace';
+    x.fillText('curve: continuous signal  • dots: samples  • squares/steps: quantized', pad, 170);
+  }
+  ['sq-s','sq-b'].forEach(function(id){var e=document.getElementById(id); if(e) e.addEventListener('input',draw);});
+  draw();
+})();
+</script>
+
+
 <h3>3) Pixels, channels, and color spaces</h3>
 <p>A <strong>pixel</strong> is one grid sample; in a color image it holds multiple <strong>channels</strong>. Common representations:</p>
 <table>
@@ -100,6 +135,40 @@
   <li><strong>Thresholding (simple case):</strong> map to binary by comparing to a threshold — a decision, not just enhancement.</li>
 </ul>
 <p>A <strong>histogram</strong> counts how many pixels fall into each intensity bin. It summarizes global tone/contrast (spread, peaks, clipping) but discards spatial layout — two very different images can share a histogram.</p>
+
+<figure class="fig">
+  <canvas id="hist-demo" width="700" height="170" style="width:100%;max-width:700px;height:auto;border:1px solid var(--rule);background:var(--card);border-radius:6px"></canvas>
+  <div class="fig-controls">
+    <label>Brightness β <input id="h-b" type="range" min="-60" max="60" step="5" value="0"></label>
+    <label>Contrast α <input id="h-a" type="range" min="0.5" max="1.8" step="0.05" value="1"></label>
+    <output id="h-o"></output>
+  </div>
+  <figcaption><strong>Histogram shift/stretch.</strong> A brightness offset shifts the distribution; contrast scaling stretches/compresses it and can cause clipping at 0 or 255.</figcaption>
+</figure>
+<script>
+(function(){
+  var c=document.getElementById('hist-demo'); if(!c) return; var x=c.getContext('2d');
+  var base=[]; for(var i=0;i<256;i++){ base[i]=Math.exp(-Math.pow(i-90,2)/(2*18*18))*220 + Math.exp(-Math.pow(i-160,2)/(2*22*22))*160; }
+  function draw(){
+    var a=+document.getElementById('h-a').value, b=+document.getElementById('h-b').value;
+    document.getElementById('h-o').textContent='α='+a.toFixed(2)+', β='+b;
+    var out=new Array(256).fill(0);
+    for(var i=0;i<256;i++){ var j=Math.round(a*i+b); j=Math.max(0,Math.min(255,j)); out[j]+=base[i]; }
+    var mx=1; out.forEach(function(v){if(v>mx)mx=v;});
+    x.clearRect(0,0,700,170); var pad=30,w=640,h=110;
+    for(var i=0;i<256;i++){
+      var bh=(out[i]/mx)*h; x.fillStyle='rgba(31,95,122,0.65)';
+      x.fillRect(pad + i*(w/255), pad+h-bh, Math.max(1,w/255), bh);
+    }
+    x.strokeStyle='rgba(120,120,120,0.6)'; x.strokeRect(pad,pad,w,h);
+    x.fillStyle=getComputedStyle(document.body).color; x.font='12px ui-monospace,monospace';
+    x.fillText('0', pad, pad+h+14); x.fillText('255', pad+w-18, pad+h+14); x.fillText('pixel count', pad, pad-8);
+  }
+  ['h-a','h-b'].forEach(function(id){var e=document.getElementById(id); if(e) e.addEventListener('input',draw);});
+  draw();
+})();
+</script>
+
 
 <h3>5) Filtering and convolution fundamentals (prerequisite for all later topics)</h3>
 <p>A <strong>linear filter</strong> replaces each pixel by a weighted sum of neighbors defined by a <strong>kernel</strong> (mask). For kernel <code>K</code> centered at <code>(x,y)</code>:</p>
@@ -210,6 +279,94 @@
     </details>
   </li>
 </ol>
+
+
+<h2>Python in Colab: implement the lesson</h2>
+<p>Run this end-to-end in Google Colab (or any Python environment with NumPy/Matplotlib). It demonstrates image representation, color conversion, histograms, intensity transforms, and convolution/correlation.</p>
+<pre><code>import numpy as np
+import matplotlib.pyplot as plt
+
+# 1) Image as a sampled, quantized signal (synthetic grayscale)
+H, W = 64, 64
+y, x = np.mgrid[0:H, 0:W]
+img = (0.6*np.sin(2*np.pi*x/16) + 0.4*np.cos(2*np.pi*y/10))
+img = ((img - img.min())/(img.max()-img.min()) * 255).astype(np.uint8)
+print('shape:', img.shape, 'dtype:', img.dtype, 'min/max:', img.min(), img.max())
+
+# 2) RGB channels and luma (perceived grayscale)
+rgb = np.zeros((H, W, 3), dtype=np.uint8)
+rgb[..., 0] = np.clip(img + 20, 0, 255)       # R
+rgb[..., 1] = np.clip(img, 0, 255)            # G
+rgb[..., 2] = np.clip(img//2, 0, 255)         # B
+luma = (0.299*rgb[...,0] + 0.587*rgb[...,1] + 0.114*rgb[...,2]).astype(np.uint8)
+naive = rgb.mean(axis=2).astype(np.uint8)
+
+# 3) Intensity transforms: g = clip(alpha*I + beta), gamma
+def linear_transform(I, alpha=1.2, beta=-10):
+    return np.clip(alpha*I.astype(np.float32) + beta, 0, 255).astype(np.uint8)
+
+def gamma_transform(I, gamma=1.5):
+    In = I.astype(np.float32)/255.0
+    return np.clip((In**gamma)*255, 0, 255).astype(np.uint8)
+
+bright = linear_transform(luma, alpha=1.0, beta=40)
+contrast = linear_transform(luma, alpha=1.4, beta=-30)
+gamma_dark = gamma_transform(luma, gamma=1.8)
+
+# 4) Histogram
+def show_hist(ax, I, title):
+    ax.hist(I.ravel(), bins=256, range=(0,255), color='#1f5f7a', alpha=0.8)
+    ax.set_title(title); ax.set_xlim(0,255)
+
+# 5) Convolution (correlation-style sliding) and a flipped kernel for true convolution
+def convolve2d(I, K, flip=True):
+    Kh, Kw = K.shape
+    pad_h, pad_w = Kh//2, Kw//2
+    Kf = np.flipud(np.fliplr(K)) if flip else K
+    P = np.pad(I.astype(np.float32), ((pad_h,pad_h),(pad_w,pad_w)), mode='edge')
+    out = np.zeros_like(I, dtype=np.float32)
+    for i in range(I.shape[0]):
+        for j in range(I.shape[1]):
+            patch = P[i:i+Kh, j:j+Kw]
+            out[i,j] = np.sum(patch * Kf)
+    return out
+
+box = np.ones((3,3), np.float32)/9.0
+gauss = (1/16.0)*np.array([[1,2,1],[2,4,2],[1,2,1]], np.float32)
+sharpen = np.array([[0,-1,0],[-1,5,-1],[0,-1,0]], np.float32)
+sobelx = np.array([[-1,0,1],[-2,0,2],[-1,0,1]], np.float32)
+
+blurred = np.clip(convolve2d(luma, box), 0, 255).astype(np.uint8)
+sharp = np.clip(convolve2d(luma, sharpen), 0, 255).astype(np.uint8)
+edges = convolve2d(luma, sobelx)
+edges_vis = np.clip(np.abs(edges), 0, 255).astype(np.uint8)
+
+# correlation vs convolution for an asymmetric 1D kernel (concept)
+signal = np.array([1,2,3,4,3,2,1], np.float32)
+k = np.array([1,0,-1], np.float32)
+corr = np.array([np.sum(signal[i:i+3]*k) for i in range(len(signal)-2)])
+conv = np.array([np.sum(signal[i:i+3]*k[::-1]) for i in range(len(signal)-2)])
+print('1D correlation:', corr, '  1D convolution:', conv)
+
+# 6) Visualize
+fig, axs = plt.subplots(3, 4, figsize=(14,9))
+axs[0,0].imshow(img, cmap='gray'); axs[0,0].set_title('Grayscale signal')
+axs[0,1].imshow(rgb); axs[0,1].set_title('RGB')
+axs[0,2].imshow(luma, cmap='gray'); axs[0,2].set_title('Luma (weighted)')
+axs[0,3].imshow(naive, cmap='gray'); axs[0,3].set_title('Naive average')
+axs[1,0].imshow(bright, cmap='gray'); axs[1,0].set_title('Bright (β=+40)')
+axs[1,1].imshow(contrast, cmap='gray'); axs[1,1].set_title('Contrast (α=1.4)')
+axs[1,2].imshow(gamma_dark, cmap='gray'); axs[1,2].set_title('Gamma (γ=1.8)')
+show_hist(axs[1,3], luma, 'Histogram (luma)')
+axs[2,0].imshow(blurred, cmap='gray'); axs[2,0].set_title('Box blur')
+axs[2,1].imshow(sharp, cmap='gray'); axs[2,1].set_title('Sharpen')
+axs[2,2].imshow(edges_vis, cmap='gray'); axs[2,2].set_title('Sobel X (|resp|)')
+show_hist(axs[2,3], contrast, 'Histogram (contrast)')
+for ax in axs.ravel():
+    if ax.images: ax.axis('off')
+plt.tight_layout(); plt.show()
+</code></pre>
+<p><strong>Try in Colab:</strong> change kernel values, bit depth/quantization (<code>(img//(256//levels))*(256//levels)</code>), or replace the synthetic image with an uploaded photo (<code>from PIL import Image; np.array(Image.open('photo.jpg').convert('L'))</code>).</p>
 
 <h2>Labs &amp; next steps</h2>
 <p>Practice the fundamentals interactively:</p>

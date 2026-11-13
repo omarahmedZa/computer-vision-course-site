@@ -1,0 +1,30 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Cheat Sheet 02 — Geometric Transformations & Image Warping</title>
+<style>body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111;line-height:1.35;font-size:12px}h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;margin:14px 0 4px;border-bottom:1px solid #ccc}ul{margin:4px 0 4px 18px}code{font-family:ui-monospace,Consolas,monospace;font-size:11px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.box{background:#f6f6f6;padding:8px;border-radius:4px}small{color:#555}</style></head><body>
+<h1>Lesson 02 — Geometric Transformations &amp; Image Warping</h1><small>2D transforms · homogeneous matrices · forward vs inverse warping · interpolation · restoration</small>
+<div class="grid"><div>
+<h2>Core ideas</h2><ul>
+<li><b>Homogeneous coords:</b> p=[x,y,1]^T lets translation/affine/projective be matrix multiplies.</li>
+<li><b>Transforms:</b> translation, rotation, scale, shear (affine preserves parallel lines); projective/homography H (3×3, up to scale) preserves straight lines, models plane perspective.</li>
+<li><b>Composition:</b> apply A then B → (B·A)p; order matters.</li>
+<li><b>Forward warping:</b> send source pixels to destinations → holes/overwrites.</li>
+<li><b>Inverse warping:</b> for each destination pixel sample source at T^{-1}(p') → fills all outputs; needs interpolation.</li>
+</ul>
+<h2>Interpolation</h2><ul>
+<li><b>Nearest:</b> closest value (fast, preserves labels/values, blocky).</li>
+<li><b>Bilinear:</b> blend 4 neighbors (smooth, slight blur).</li>
+<li><b>Bicubic (concept):</b> 16 neighbors, smoother/sharper trade-offs.</li>
+</ul>
+</div><div>
+<h2>Key formulas</h2><div class="box"><code>p' = H p,  p=[x,y,1]^T</code><br>Affine: <code>[x';y';1]=[[a,b,tx],[c,d,ty],[0,0,1]][x;y;1]</code><br>Rotation: <code>[[cosθ,-sinθ],[sinθ,cosθ]]</code><br>Homography (projective divide): <code>x'=(h11x+h12y+h13)/(h31x+h32y+h33)</code><br>Alpha/bilinear: linear blend by distances (dx,dy)</div>
+<h2>Restoration pipeline</h2><ul>
+<li>Choose motion model (translation/affine/homography).</li>
+<li>Estimate parameters (correspondences/calibration).</li>
+<li>Inverse-warp with interpolation onto output grid.</li>
+</ul>
+<h2>Pitfalls</h2><ul>
+<li>Coordinate conventions (origin, x/y vs row/col), degrees vs radians.</li>
+<li>Using forward warping for dense images (holes).</li>
+<li>Wrong composition order; invalid/out-of-bounds source samples.</li>
+<li>Bilinear can blur or create non-original values (bad for masks).</li>
+</ul>
+</div></div></body></html>

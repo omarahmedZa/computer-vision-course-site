@@ -58,6 +58,35 @@
 <h3>5) Seams and alignment dependence</h3>
 <p>Blending assumes corresponding content is in the same place. If images are misaligned (parallax, motion, registration error), blending smears/ghosts structures. Choosing a good seam/compositing boundary or first registering images (Lesson 7) is often necessary; blending complements, not replaces, alignment.</p>
 
+
+<figure class="fig">
+  <canvas id="blend-anim" width="720" height="170" style="width:100%;max-width:720px;height:auto;border:1px solid var(--rule);background:var(--card);border-radius:6px"></canvas>
+  <div class="fig-controls">
+    <label>Feather width <input id="ba-w" type="range" min="0" max="80" step="2" value="30"></label>
+    <label>Misalignment (px) <input id="ba-m" type="range" min="0" max="12" step="1" value="0"></label>
+    <output id="ba-o"></output>
+  </div>
+  <figcaption><strong>Blend vs alignment.</strong> Wider feather hides exposure seams but, with misalignment, creates ghosting/double edges — blending cannot replace registration.</figcaption>
+</figure>
+<script>
+(function(){
+  var c=document.getElementById('blend-anim'); if(!c) return; var x=c.getContext('2d');
+  function stripe(offset, bright){ var a=[]; for(var i=0;i<300;i++){ var v=((Math.floor((i+offset)/20)%2)?170:90)+bright + 20*Math.sin(i*0.2); a.push(Math.max(0,Math.min(255,v))); } return a; }
+  function draw(){
+    var w=+document.getElementById('ba-w').value, m=+document.getElementById('ba-m').value;
+    document.getElementById('ba-o').textContent='feather='+w+'px, misalign='+m+'px';
+    var A=stripe(0,0), B=stripe(m,35), seam=150;
+    x.clearRect(0,0,720,170);
+    for(var y=0;y<60;y++) for(var i=0;i<300;i++){ var alpha=i<seam-w?1:(i>seam+w?0:1-(i-(seam-w))/(2*w||1)); var v=alpha*A[i]+(1-alpha)*B[i]; x.fillStyle='rgb('+v+','+v+','+v+')'; x.fillRect(40+i,40+y,1,1); }
+    x.strokeStyle='rgba(163,35,31,0.8)'; x.beginPath(); x.moveTo(40+seam,40); x.lineTo(40+seam,100); x.stroke();
+    x.fillStyle=getComputedStyle(document.body).color; x.font='12px ui-monospace,monospace';
+    x.fillText('Left: A  |  Right: B (brighter'+(m?(', shifted '+m+'px)'):')') , 40, 120);
+    x.fillText('Red line: seam. Increase misalignment to see ghosting even with feather.', 40, 150);
+  }
+  ['ba-w','ba-m'].forEach(function(id){document.getElementById(id).addEventListener('input',draw);}); draw();
+})();
+</script>
+
 <h2>Worked examples</h2>
 
 <h3>Example 1 — Alpha blend at a pixel</h3>
@@ -90,6 +119,83 @@
     <details><summary>Answer</summary><p>No. Blending combines values at corresponding pixel locations; if the same scene structure is in different positions, mixing them creates double/blurred structures. Geometric alignment (registration) or seam placement is needed.</p></details>
   </li>
 </ol>
+
+
+<h2>Python in Colab: implement the lesson</h2>
+<p>Run in Google Colab. Demonstrates alpha/feather blending and a simple Laplacian-pyramid (multi-band) blend on synthetic images with an exposure difference.</p>
+<pre><code>import numpy as np
+import matplotlib.pyplot as plt
+
+def make_img(offset=0, bright=0):
+    H,W=128,256
+    y,x=np.mgrid[0:H,0:W]
+    base = (((x+offset)//16 + y//16) % 2)*120 + 60
+    detail = 20*np.sin((x+offset)*0.3)*np.sin(y*0.3)
+    return np.clip(base + detail + bright, 0, 255).astype(np.float32)
+
+A = make_img(0, 0)
+B = make_img(0, 35)  # exposure difference
+
+def feather_blend(A,B,center,width):
+    H,W=A.shape; alpha=np.ones((H,W),np.float32)
+    ramp=np.clip((np.arange(W)- (center-width))/(2*width+1e-6),0,1)
+    alpha *= (1-ramp)
+    return alpha*A + (1-alpha)*B, alpha
+
+# Simple Gaussian/Laplacian pyramid (down/up by factor 2)
+def down(img):
+    k=np.array([1,4,6,4,1],np.float32)/16
+    g=np.apply_along_axis(lambda m: np.convolve(m,k,mode='same'), axis=1, arr=img)
+    g=np.apply_along_axis(lambda m: np.convolve(m,k,mode='same'), axis=0, arr=g)
+    return g[::2,::2]
+
+def up(img, shape):
+    out=np.zeros(shape,np.float32)
+    out[::2,::2]=img
+    k=np.array([1,4,6,4,1],np.float32)/8
+    out=np.apply_along_axis(lambda m: np.convolve(m,k,mode='same'), axis=1, arr=out)
+    out=np.apply_along_axis(lambda m: np.convolve(m,k,mode='same'), axis=0, arr=out)
+    return out
+
+def gaussian_pyr(img, levels):
+    G=[img]
+    for _ in range(levels): G.append(down(G[-1]))
+    return G
+
+def laplacian_pyr(img, levels):
+    G=gaussian_pyr(img,levels); L=[]
+    for i in range(levels):
+        L.append(G[i]-up(G[i+1], G[i].shape))
+    L.append(G[-1]); return L
+
+def blend_pyr(LA,LB,GM):
+    return [gm*la + (1-gm)*lb for la,lb,gm in zip(LA,LB,GM)]
+
+def collapse(L):
+    img=L[-1]
+    for i in range(len(L)-2,-1,-1): img = up(img, L[i].shape) + L[i]
+    return img
+
+levels=4
+center, width = W//2, 20
+_, alpha = feather_blend(A,B,center,width)
+hard, _ = feather_blend(A,B,center,0)
+feath, _ = feather_blend(A,B,center,width)
+LA,LB = laplacian_pyr(A,levels), laplacian_pyr(B,levels)
+GM = gaussian_pyr(alpha,levels)
+pyr = np.clip(collapse(blend_pyr(LA,LB,GM)),0,255)
+
+fig,axs=plt.subplots(2,3,figsize=(13,6))
+axs[0,0].imshow(A,cmap='gray',vmin=0,vmax=255); axs[0,0].set_title('A')
+axs[0,1].imshow(B,cmap='gray',vmin=0,vmax=255); axs[0,1].set_title('B (brighter)')
+axs[0,2].imshow(alpha,cmap='gray'); axs[0,2].set_title('Mask (feathered)')
+axs[1,0].imshow(hard,cmap='gray',vmin=0,vmax=255); axs[1,0].set_title('Hard seam')
+axs[1,1].imshow(feath,cmap='gray',vmin=0,vmax=255); axs[1,1].set_title('Feather blend')
+axs[1,2].imshow(pyr,cmap='gray',vmin=0,vmax=255); axs[1,2].set_title('Multi-band (pyramid)')
+for a in axs.ravel(): a.axis('off')
+plt.tight_layout(); plt.show()
+</code></pre>
+<p><strong>Try in Colab:</strong> introduce a few-pixel misalignment between A and B to see ghosting, or blend real images with an alpha mask.</p>
 
 <h2>Labs &amp; next steps</h2>
 <ul>

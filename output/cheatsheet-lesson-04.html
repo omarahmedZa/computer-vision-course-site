@@ -1,0 +1,29 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Cheat Sheet 04 — SIFT Feature Detectors/Descriptors</title>
+<style>body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111;line-height:1.35;font-size:12px}h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;margin:14px 0 4px;border-bottom:1px solid #ccc}ul{margin:4px 0 4px 18px}code{font-family:ui-monospace,Consolas,monospace;font-size:11px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.box{background:#f6f6f6;padding:8px;border-radius:4px}small{color:#555}</style></head><body>
+<h1>Lesson 04 — Feature Detectors/Descriptors (SIFT)</h1><small>Scale-space extrema · keypoint localization/orientation · descriptor · invariances · matching</small>
+<div class="grid"><div>
+<h2>Pipeline</h2><ul>
+<li><b>1) Detect:</b> DoG pyramid, find extrema in (x,y,σ) over 26 neighbors.</li>
+<li><b>2) Localize/filter:</b> sub-pixel/scale refinement; reject low-contrast and edge-like (unstable) points.</li>
+<li><b>3) Orientation:</b> gradient orientation histogram in local neighborhood → dominant peak = canonical orientation (rotation invariance); strong secondary peaks may duplicate keypoint.</li>
+<li><b>4) Descriptor:</b> rotate to canonical frame, take ~16×16 region → 4×4 cells × 8 orientation bins = 128-D; weight by magnitude/Gaussian; normalize, clamp, renormalize.</li>
+</ul>
+<h2>Matching basics</h2><ul>
+<li>Compare descriptors by distance (e.g. Euclidean/L2).</li>
+<li><b>Ratio test:</b> accept if d1/d2 &lt; τ (≈0.7–0.8) — best much better than second-best (distinctive).</li>
+<li>Geometric verification (e.g. RANSAC) removes remaining outliers.</li>
+</ul>
+</div><div>
+<h2>Invariances</h2><ul>
+<li><b>Scale:</b> detect at characteristic σ / scale-normalized neighborhood.</li>
+<li><b>Rotation:</b> canonical orientation alignment.</li>
+<li><b>Illumination (partial):</b> gradients + normalization reduce additive/multiplicative effects.</li>
+<li><b>Not fully invariant:</b> large affine/viewpoint change, non-rigid deformation, occlusion, extreme blur/lighting.</li>
+</ul>
+<h2>Key formulas/ideas</h2><div class="box"><code>D(x,y,σ)=L(x,y,kσ)-L(x,y,σ)</code><br>Descriptor: 4×4 spatial bins × 8 orientation bins = 128<br>Normalize → clamp large bins → normalize</div>
+<h2>Pitfalls</h2><ul>
+<li>“Invariant to everything” — false; check assumptions.</li>
+<li>Nearest neighbor alone is ambiguous in repetitive textures.</li>
+<li>Many keypoints ≠ good matches (need distinctiveness/stability).</li>
+</ul>
+</div></div></body></html>

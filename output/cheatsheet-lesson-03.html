@@ -1,0 +1,26 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Cheat Sheet 03 — Corner and Blob Detection</title>
+<style>body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111;line-height:1.35;font-size:12px}h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;margin:14px 0 4px;border-bottom:1px solid #ccc}ul{margin:4px 0 4px 18px}code{font-family:ui-monospace,Consolas,monospace;font-size:11px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.box{background:#f6f6f6;padding:8px;border-radius:4px}small{color:#555}</style></head><body>
+<h1>Lesson 03 — Corner and Blob Detection</h1><small>Features · gradients/structure · Harris corners · NMS · LoG/DoG scale-space blobs</small>
+<div class="grid"><div>
+<h2>Core ideas</h2><ul>
+<li><b>Why features:</b> repeatable, localizable points for matching, tracking, registration, stitching.</li>
+<li><b>Local structure:</b> flat (small gradients), edge (change in one direction), corner (change in two directions — aperture intuition).</li>
+<li><b>Harris:</b> second-moment/structure tensor M over window; eigenvalues λ1,λ2 indicate flat/edge/corner. Response R = det(M) − k·trace(M)^2, threshold + NMS.</li>
+<li><b>Blobs:</b> regions distinct from surroundings at some scale. Scale-space L(x,y,σ)=Gσ*I; detect extrema across space and scale.</li>
+<li><b>LoG/DoG:</b> normalized LoG (σ^2∇^2L) peaks at blob scale; DoG = L(x,y,kσ)−L(x,y,σ) approximates LoG efficiently.</li>
+</ul>
+<h2>Harris pipeline</h2><ul><li>Compute gradients Ix,Iy → build M (smoothed Ix^2, Iy^2, IxIy) → compute R → threshold → non-maximum suppression.</li></ul>
+</div><div>
+<h2>Key formulas</h2><div class="box"><code>M = Σ w(x,y)[[Ix^2, IxIy],[IxIy, Iy^2]]</code><br><code>R = det(M) - k(trace(M))^2</code>, k≈0.04–0.06<br><code>L(x,y,σ)=G(x,y,σ)*I</code><br><code>DoG = G_{kσ}*I - G_σ*I</code></div>
+<h2>Interpretation</h2><ul>
+<li>Edge: one large, one small eigenvalue (R low/negative).</li>
+<li>Corner: both large (R strongly positive).</li>
+<li>Blob response strongest when filter scale ≈ blob size.</li>
+</ul>
+<h2>Pitfalls</h2><ul>
+<li>High gradient magnitude ≠ corner (edges fail aperture test).</li>
+<li>Threshold/window/smoothing sensitivity; clusters without NMS.</li>
+<li>Single-scale detectors miss different-sized structures.</li>
+<li>Contrast/illumination affects raw responses.</li>
+</ul>
+</div></div></body></html>

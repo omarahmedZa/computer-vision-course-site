@@ -1,0 +1,26 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Cheat Sheet 05 — Model Fitting (Hough Transform, RANSAC)</title>
+<style>body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111;line-height:1.35;font-size:12px}h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;margin:14px 0 4px;border-bottom:1px solid #ccc}ul{margin:4px 0 4px 18px}code{font-family:ui-monospace,Consolas,monospace;font-size:11px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.box{background:#f6f6f6;padding:8px;border-radius:4px}small{color:#555}</style></head><body>
+<h1>Lesson 05 — Model Fitting (Hough Transform, RANSAC)</h1><small>Hough voting · parameter space · lines/circles · RANSAC · inliers/outliers</small>
+<div class="grid"><div>
+<h2>Hough transform</h2><ul>
+<li><b>Idea:</b> each evidence point votes for all model parameters consistent with it; accumulator peaks = supported models.</li>
+<li><b>Line (normal form):</b> ρ = x cosθ + y sinθ. A point maps to a sinusoid in (θ,ρ); collinear points intersect at one peak.</li>
+<li><b>Circles:</b> (x−a)^2+(y−b)^2=r^2. Known r → 2D center votes; unknown r → 3D accumulator (costly).</li>
+<li>Steps: edge points → vote in discretized accumulator → find peaks → recover models.</li>
+</ul>
+<h2>RANSAC</h2><ul>
+<li>Repeat N times: sample minimal set (e.g. 2 for line, 4 for homography) → fit hypothesis → count inliers (error &lt; τ) → keep best → refit on inliers.</li>
+<li><b>Inlier ratio w, sample size s:</b> P(good sample)=w^s, P(success in N)=1−(1−w^s)^N.</li>
+</ul>
+</div><div>
+<h2>Key formulas</h2><div class="box">Line: <code>ρ = x cosθ + y sinθ</code><br>RANSAC iterations: <code>N ≥ log(1-p)/log(1-w^s)</code></div>
+<h2>When to use</h2><ul>
+<li><b>Hough:</b> detect parametric shapes (lines/circles) from edge evidence; robust to gaps/clutter but accumulator grows with params.</li>
+<li><b>RANSAC:</b> robust parameter estimation with outliers (fitting, registration, homography estimation).</li>
+</ul>
+<h2>Pitfalls</h2><ul>
+<li>Accumulator resolution/range trade-offs; multiple structures need multiple peaks/runs.</li>
+<li>RANSAC: τ too tight/loose, too few iterations, degenerate samples.</li>
+<li>Dominant wrong structure if true inliers lack support.</li>
+</ul>
+</div></div></body></html>

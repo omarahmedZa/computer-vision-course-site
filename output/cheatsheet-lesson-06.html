@@ -1,0 +1,24 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Cheat Sheet 06 — Image Blending</title>
+<style>body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111;line-height:1.35;font-size:12px}h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;margin:14px 0 4px;border-bottom:1px solid #ccc}ul{margin:4px 0 4px 18px}code{font-family:ui-monospace,Consolas,monospace;font-size:11px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.box{background:#f6f6f6;padding:8px;border-radius:4px}small{color:#555}</style></head><body>
+<h1>Lesson 06 — Image Blending</h1><small>Alpha blending · feathering · seams/exposure · Gaussian/Laplacian pyramids · multi-band blending</small>
+<div class="grid"><div>
+<h2>Core ideas</h2><ul>
+<li><b>Goal:</b> combine overlapping images smoothly; seams arise from exposure/illumination differences and misalignment.</li>
+<li><b>Alpha blending:</b> I = αA + (1−α)B with mask α∈[0,1].</li>
+<li><b>Hard mask:</b> abrupt seam visible if photometry differs. <b>Feathering:</b> smooth transition reduces seam but can ghost misaligned content.</li>
+<li><b>Gaussian pyramid:</b> successive blur+downsample (multi-scale representation). <b>Laplacian pyramid:</b> band-pass details L_i = G_i − up(G_{i+1}); reconstruct by summing.</li>
+<li><b>Multi-band/Laplacian blending:</b> blend each band with Gaussian pyramid of mask → low frequencies transition broadly, high frequencies narrowly.</li>
+</ul>
+</div><div>
+<h2>Key formulas</h2><div class="box"><code>I(x,y)=α(x,y)A(x,y)+(1−α(x,y))B(x,y)</code><br><code>L_i = G_i - upsample(G_{i+1})</code><br>Blend: <code>L_i = GM_i·LA_i + (1−GM_i)·LB_i</code></div>
+<h2>Choosing approach</h2><ul>
+<li>Well-aligned, similar exposure → simple feather may suffice.</li>
+<li>Exposure/color differences → multi-band blending hides seams better.</li>
+<li>Misalignment/parallax → fix registration or choose seam; blending alone causes ghosts.</li>
+</ul>
+<h2>Pitfalls</h2><ul>
+<li>Blending ≠ alignment (cannot fix parallax).</li>
+<li>Too-narrow feather: seam remains; too-wide: blur/ghosting.</li>
+<li>Need photometric normalization in some cases.</li>
+</ul>
+</div></div></body></html>
