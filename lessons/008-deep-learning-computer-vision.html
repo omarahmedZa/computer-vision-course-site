@@ -152,90 +152,10 @@
 </ol>
 
 
-<h2>Python in Colab: implement the lesson</h2>
-<p>Run in Google Colab. Builds a tiny CNN forward pass (convolution, ReLU, pooling), visualizes learned-like filter responses and receptive-field growth, and trains a minimal classifier concept on synthetic data (NumPy-only).</p>
-<pre><code>import numpy as np
-import matplotlib.pyplot as plt
-
-# --- Tiny CNN building blocks (NumPy) ---
-def conv2(x, k, bias=0.0, stride=1, padding=1):
-    # x: HxW, k: khxkw
-    if padding:
-        x=np.pad(x,((padding,padding),(padding,padding)),mode='constant')
-    kh,kw=k.shape; H,W=x.shape
-    oh=(H-kh)//stride+1; ow=(W-kw)//stride+1
-    out=np.zeros((oh,ow),np.float32)
-    for i in range(oh):
-        for j in range(ow):
-            patch=x[i*stride:i*stride+kh, j*stride:j*stride+kw]
-            out[i,j]=np.sum(patch*k)+bias
-    return out
-
-def relu(x): return np.maximum(0,x)
-def maxpool2(x, size=2, stride=2):
-    H,W=x.shape; oh=(H-size)//stride+1; ow=(W-size)//stride+1
-    out=np.zeros((oh,ow),np.float32)
-    for i in range(oh):
-        for j in range(ow):
-            out[i,j]=np.max(x[i*stride:i*stride+size, j*stride:j*stride+size])
-    return out
-
-# Synthetic "image"
-H,W=32,32
-yy,xx=np.mgrid[0:H,0:W]
-img=np.zeros((H,W),np.float32)
-img[8:24,10:14]=1.0; img[10:14,10:22]=1.0  # a 'T'-like shape
-img += 0.05*np.random.default_rng(0).standard_normal((H,W))
-
-# Hand-set filters resembling learned early edges
-k_vert=np.array([[-1,0,1],[-2,0,2],[-1,0,1]],np.float32)
-k_horiz=np.array([[-1,-2,-1],[0,0,0],[1,2,1]],np.float32)
-k_diag=np.array([[0,1,2],[-1,0,1],[-2,-1,0]],np.float32)
-
-f1_v=relu(conv2(img,k_vert)); f1_h=relu(conv2(img,k_horiz)); f1_d=relu(conv2(img,k_diag))
-p1_v=maxpool2(f1_v); p1_h=maxpool2(f1_h)
-# second layer combines pooled maps (simple)
-f2 = relu(conv2(p1_v, np.array([[1,0,-1],[1,0,-1],[1,0,-1]],np.float32)) + 0.5*conv2(p1_h, np.array([[1,1,1],[0,0,0],[-1,-1,-1]],np.float32)))
-
-fig,axs=plt.subplots(2,4,figsize=(13,6))
-axs[0,0].imshow(img,cmap='gray'); axs[0,0].set_title('Input')
-axs[0,1].imshow(f1_v,cmap='magma'); axs[0,1].set_title('Layer1: vertical filter')
-axs[0,2].imshow(f1_h,cmap='magma'); axs[0,2].set_title('Layer1: horizontal filter')
-axs[0,3].imshow(f1_d,cmap='magma'); axs[0,3].set_title('Layer1: diagonal filter')
-axs[1,0].imshow(p1_v,cmap='magma'); axs[1,0].set_title('After pool (RF grows)')
-axs[1,1].imshow(p1_h,cmap='magma'); axs[1,1].set_title('After pool')
-axs[1,2].imshow(f2,cmap='magma'); axs[1,2].set_title('Layer2: combined features')
-# receptive field illustration
-rf1=3; rf2= (rf1-1)+2*2  # approx for conv+pool+conv
-axs[1,3].text(0.05,0.6,'Receptive field (3x3 stack, stride1): 3,5,7,...\nPooling/stride increase it faster.\nDeeper units see larger context.', fontsize=11)
-axs[1,3].axis('off')
-for a in axs.ravel():
-    if a is not axs[1,3]: a.axis('off')
-plt.tight_layout(); plt.show()
-
-# --- Minimal "training" concept: linear classifier on pooled features (gradient descent) ---
-rng=np.random.default_rng(0)
-def make_sample(label):
-    im=np.zeros((16,16),np.float32)
-    if label==0: im[4:12,7:9]=1.0  # vertical bar
-    else: im[7:9,4:12]=1.0         # horizontal bar
-    im += 0.1*rng.standard_normal(im.shape)
-    return im
-
-def features(im):
-    v=relu(conv2(im,k_vert)).mean(); h=relu(conv2(im,k_horiz)).mean(); return np.array([v,h,1.0])
-X=[]; y=[]
-for _ in range(120):
-    lab=rng.integers(0,2); X.append(features(make_sample(lab))); y.append(lab)
-X=np.stack(X); y=np.array(y,np.float32)
-w=np.zeros(3,np.float32); lr=0.5
-for epoch in range(200):
-    logits=X@w; p=1/(1+np.exp(-logits))
-    grad=X.T@(p-y)/len(y); w-=lr*grad
-pred=(1/(1+np.exp(-(X@w)))>0.5).astype(int)
-print('train accuracy:', (pred==y).mean())
-</code></pre>
-<p><strong>Try in Colab:</strong> replace hand-set kernels with learnable parameters, add more layers/classes, or use PyTorch (<code>torch.nn.Conv2d</code>) on CIFAR-10/MNIST to compare with this from-scratch intuition.</p>
+<h2>Python in Colab</h2>
+<p>Open the full, runnable notebook for this lesson in Google Colab (code and explanations, step by step):</p>
+<p><a class="pill" href="https://colab.research.google.com/github/omarahmedZa/computer-vision-course-site/blob/main/notebooks/lesson-08.ipynb" target="_blank" rel="noopener">Open Lesson 08 in Google Colab</a></p>
+<p style="font-size:.9rem;color:var(--ink-soft)">The notebook includes all code and markdown explanations for implementing the concepts from this lesson. You can also download the notebook directly: <a href="../notebooks/lesson-08.ipynb">lesson-08.ipynb</a>.</p>
 
 <h2>Labs &amp; next steps</h2>
 <ul>

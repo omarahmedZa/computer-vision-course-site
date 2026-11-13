@@ -164,75 +164,10 @@
 </ol>
 
 
-<h2>Python in Colab: implement the lesson</h2>
-<p>Run in Google Colab. Computes image gradients, a Harris corner response (with NMS), and a simple multi-scale blob response (LoG approximation).</p>
-<pre><code>import numpy as np
-import matplotlib.pyplot as plt
-
-# Synthetic image: corners, edges, blobs
-H,W = 120,160
-img = np.ones((H,W), np.float32)*40
-img[20:90,20:70] = 220
-img[40:100,90:140] = 220
-yy,xx = np.mgrid[0:H,0:W]
-for (cy,cx,r,val) in [(30,120,6,20),(80,40,12,20),(60,130,18,240)]:
-    img[(yy-cy)**2 + (xx-cx)**2 < r*r] = val
-img = np.clip(img,0,255)
-
-def conv2(img,k):
-    kh,kw=k.shape; ph,pw=kh//2,kw//2
-    p=np.pad(img,((ph,ph),(pw,pw)),mode='edge'); out=np.zeros_like(img,np.float32)
-    for i in range(img.shape[0]):
-        for j in range(img.shape[1]):
-            out[i,j]=np.sum(p[i:i+kh,j:j+kw]*k)
-    return out
-
-sobelx = np.array([[-1,0,1],[-2,0,2],[-1,0,1]],np.float32)
-sobely = np.array([[-1,-2,-1],[0,0,0],[1,2,1]],np.float32)
-Ix = conv2(img, sobelx); Iy = conv2(img, sobely)
-
-# Harris
-Ixx,Iyy,Ixy = Ix*Ix, Iy*Iy, Ix*Iy
-box = np.ones((3,3),np.float32)
-Sxx,Syy,Sxy = conv2(Ixx,box), conv2(Iyy,box), conv2(Ixy,box)
-k=0.05
-det = Sxx*Syy - Sxy*Sxy
-trace = Sxx+Syy
-R = det - k*(trace**2)
-
-# NMS
-th = 0.1*R.max()
-corners = np.zeros_like(R,bool)
-for i in range(1,H-1):
-    for j in range(1,W-1):
-        if R[i,j]>th and R[i,j]==R[i-1:i+2,j-1:j+2].max():
-            corners[i,j]=True
-
-# Simple blob response: Laplacian of Gaussian approximation (LoG kernel) over scales
-def log_kernel(sigma, size=None):
-    if size is None: size = int(6*sigma+1)|1
-    r = size//2; y,x = np.mgrid[-r:r+1,-r:r+1]
-    s2=sigma*sigma
-    k = (x*x + y*y - 2*s2)/(s2*s2) * np.exp(-(x*x+y*y)/(2*s2))
-    return k - k.mean()
-
-scales=[2,4,6,8,10]
-responses=[conv2(img, log_kernel(s)) for s in scales]
-stack = np.stack([np.abs(r) for r in responses], axis=0)
-best = stack.max(axis=0)
-
-fig,axs = plt.subplots(2,3,figsize=(13,7))
-axs[0,0].imshow(img,cmap='gray'); axs[0,0].set_title('Image')
-mag = np.sqrt(Ix*Ix+Iy*Iy)
-axs[0,1].imshow(mag,cmap='magma'); axs[0,1].set_title('Gradient magnitude')
-axs[0,2].imshow(R,cmap='RdBu_r'); axs[0,2].scatter(np.where(corners)[1],np.where(corners)[0],s=10,c='cyan'); axs[0,2].set_title('Harris R + NMS')
-axs[1,0].imshow(np.abs(responses[1]),cmap='viridis'); axs[1,0].set_title('LoG response (σ=4)')
-axs[1,1].imshow(np.abs(responses[3]),cmap='viridis'); axs[1,1].set_title('LoG response (σ=8)')
-axs[1,2].imshow(best,cmap='viridis'); axs[1,2].set_title('Max over scales')
-for a in axs.ravel(): a.axis('off')
-plt.tight_layout(); plt.show()
-</code></pre>
-<p><strong>Try in Colab:</strong> adjust <code>k</code>/threshold, use Gaussian weighting in M, or find local extrema across (x,y,σ) in <code>stack</code> for true scale-space blob detection.</p>
+<h2>Python in Colab</h2>
+<p>Open the full, runnable notebook for this lesson in Google Colab (code and explanations, step by step):</p>
+<p><a class="pill" href="https://colab.research.google.com/github/omarahmedZa/computer-vision-course-site/blob/main/notebooks/lesson-03.ipynb" target="_blank" rel="noopener">Open Lesson 03 in Google Colab</a></p>
+<p style="font-size:.9rem;color:var(--ink-soft)">The notebook includes all code and markdown explanations for implementing the concepts from this lesson. You can also download the notebook directly: <a href="../notebooks/lesson-03.ipynb">lesson-03.ipynb</a>.</p>
 
 <h2>Labs &amp; next steps</h2>
 <ul>
