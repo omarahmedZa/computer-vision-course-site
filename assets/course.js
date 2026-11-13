@@ -101,10 +101,10 @@
     var totalItems = 0, earned = 0;
     function refresh() {
       var g = gradeOf(earned, totalItems * 2);
-      chip.querySelector("[data-score]").textContent = g.pct + "%";
+      chip.querySelector("[data-score]").textContent = earned ? g.pct + "%" : "–";
       var gradeEl = chip.querySelector("[data-grade]");
-      gradeEl.textContent = g.letter;
-      gradeEl.setAttribute("data-g", g.letter);
+      gradeEl.textContent = earned ? g.letter : "–";
+      gradeEl.setAttribute("data-g", earned ? g.letter : "");
       chip.querySelector("[data-count]").textContent = earned + "/" + (totalItems * 2);
       st.ts = Date.now();
       persist();

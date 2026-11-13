@@ -41,40 +41,37 @@ Then visit: <http://localhost:8000/>
 
 (Opening `index.html` directly via `file://` also works for most pages, but a local server is the most reliable way to mirror deployed behavior.)
 
-## Deploy to GitHub Pages (root on `main`)
+## Deployment status
 
-This site is designed to be served from the **repository root on the `main` branch** with correct relative paths.
+- **Private source repository:** <https://github.com/omarahmedZa/computer-vision-course>
+- **Live site (GitHub Pages):** <https://omarahmedza.github.io/computer-vision-course-site/>
+- **Public Pages mirror repository:** <https://github.com/omarahmedZa/computer-vision-course-site>
 
-1. **Create a GitHub repository** (the owner requested a **private** repo).  
-   - On GitHub: New repository → set visibility to **Private** → create (without adding files that conflict, or add and reconcile).
-   - *Note:* GitHub Pages availability/visibility for private repositories depends on your GitHub plan and Pages settings (on some plans a Pages site from a private repo may be publicly accessible). Review your repository’s Pages visibility settings after enabling.
+The source repository is **private** as requested. On the current GitHub plan, GitHub Pages cannot be enabled for a private repository, so the same static site is published to a separate **public** mirror repository (`computer-vision-course-site`) served from its root on `main`. This keeps the source private while providing a working Pages URL.
 
-2. **Push this project to `main`:**
-   ```bash
-   cd /path/to/computer-vision-course
-   git init
-   git add .
-   git commit -m "Initial Computer Vision course site"
-   git branch -M main
-   git remote add origin git@github.com:<your-username>/<your-repo>.git
-   git push -u origin main
-   ```
-   (Use an HTTPS remote if preferred.)
+## Deploy / update
 
-3. **Enable GitHub Pages:**
-   - In the repo: **Settings → Pages**
-   - **Build and deployment → Source:** Deploy from a branch
-   - **Branch:** `main` / **Folder:** `/ (root)` → Save
+The project is already initialized and has both remotes configured:
 
-4. **Verify:** after Pages builds, open the published URL shown in Settings → Pages and confirm the dashboard loads, navigation/lesson/lab links work, and assets render.
+```bash
+cd /home/stave/computer-vision-course
+git remote -v
+# origin  -> private source repo
+# pages   -> public Pages mirror repo
+```
 
-### Updating
-Edit files, commit, and push to `main`:
+To publish content changes:
+
 ```bash
 git add -A
 git commit -m "Update course content"
-git push
+git push origin main    # private source
+git push pages main     # public Pages mirror (triggers the Pages build)
 ```
+
+The GitHub Pages site is configured as **Deploy from a branch → `main` → `/ (root)`**. After pushing, check the deployment status under **Settings → Pages** (or the Actions/Pages build output) and confirm the dashboard, lessons, labs, and assets load at the live URL.
+
+If you later upgrade to a plan that supports Pages on private repositories, you can enable Pages directly on the private repo with the same root-on-`main` configuration and retire the public mirror.
 
 ## Design notes
 - Plain HTML/CSS/JS; progress/continue state (if used) is stored locally in the browser and never leaves the device.
