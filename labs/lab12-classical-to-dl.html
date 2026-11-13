@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L8b — Classical pipelines to deep models</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+</head>
+<body data-page="lab" data-lesson="L8b">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lab L8b · 4 pts</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead"><p class="kicker">Unit 4 · Companion lab</p><h1>Classical pipelines to deep models</h1><p class="objective">You can compare hand-crafted, geometry-aware pipelines with end-to-end learned approaches and identify when each is appropriate.</p></header>
+
+<h2>Interactive comparison</h2>
+<p>Select a vision task to compare a classical pipeline (built from this course’s methods) with a typical deep learning approach, including strengths and caveats.</p>
+<div class="fig">
+  <div class="fig-controls">
+    <label>Task
+      <select id="task">
+        <option value="stitch">Panorama stitching / registration</option>
+        <option value="detect">Object detection</option>
+        <option value="edge">Edge/feature extraction</option>
+        <option value="segment">Segmentation</option>
+      </select>
+    </label>
+  </div>
+  <div class="table-wrap"><table id="tbl"></table></div>
+  <figcaption><strong>Complementary tools.</strong> Deep models learn powerful representations from data; classical methods provide explicit geometry, interpretability, and strong priors when data or guarantees are limited.</figcaption>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>Give one situation where a classical geometric method (e.g. homography + RANSAC) is preferable or complementary to a purely learned approach.
+    <details><summary>Answer</summary><p>When precise geometric consistency is required (e.g. planar alignment, camera calibration, mapping) or data is limited: estimating an explicit model with RANSAC enforces geometric constraints and can verify/regularize learned correspondences.</p></details>
+  </li>
+  <li>What is a key limitation of relying only on end-to-end deep learning for vision tasks?
+    <details><summary>Answer</summary><p>It depends heavily on representative labeled data and compute, can be sensitive to distribution shifts/adversarial cases, and may lack interpretability or explicit guarantees compared to model-based geometric methods.</p></details>
+  </li>
+</ol>
+
+<div class="labnav"><a href="lab11-cnn-features.html">← Lab L8a</a><a href="../index.html">Course map →</a></div>
+</main>
+<script>
+(function(){
+  var data={
+    stitch:{task:'Panorama stitching / registration', classical:'Detect keypoints (Harris/SIFT) → match descriptors + ratio test → estimate homography with RANSAC → inverse warp → blend (feather/pyramid).', dl:'Learned feature detectors/matchers or end-to-end alignment/homography networks; deep blending/compositing.', prosC:'Explicit geometry, interpretable, works with little/no task-specific training, strong when planar/pure-rotation holds.', prosD:'Robust learned correspondences in challenging appearance/texture; can handle complex photometric cases with training.', caveat:'Hybrid is common: learned matches + RANSAC/warping/blending for geometric correctness.'},
+    detect:{task:'Object detection', classical:'Hand-crafted features (HOG/SIFT-like), sliding windows or proposals, classifiers + NMS; strong priors but limited semantics.', dl:'CNN/transformer detectors learn multi-scale features and regress/classify boxes or masks end-to-end.', prosC:'Lightweight, interpretable features; useful with scarce data or constrained settings.', prosD:'High accuracy and rich semantics with sufficient data; learns context and appearance variation.', caveat:'DL needs labeled data and can fail on shifts; classical constraints/NMS still appear in pipelines.'},
+    edge:{task:'Edge/feature extraction', classical:'Gradients, Sobel/Canny, LoG/DoG, Harris — explicit, well-understood responses.', dl:'Early CNN layers learn edge/texture filters; learned boundary/feature detectors optimize task utility.', prosC:'Deterministic, no training, controllable; clear physical/photometric meaning.', prosD:'Features tuned to downstream task and data; can be more discriminative.', caveat:'Learned early filters often resemble classical ones, reflecting shared image statistics.'},
+    segment:{task:'Segmentation', classical:'Thresholding, color/region methods, graph cuts, active contours — model-driven priors.', dl:'Fully convolutional/encoder-decoder networks learn dense pixel predictions from data.', prosC:'Effective with simple scenes, strong priors, or minimal labels; interpretable energy models.', prosD:'State-of-the-art semantic/instance segmentation with large datasets; captures complex context.', caveat:'May need post-processing/constraints; hybrids combine learned scores with geometric/CRF priors.'}
+  };
+  function render(){
+    var k=document.getElementById('task').value, d=data[k];
+    var html='<tr><th>Aspect</th><th>Classical (this course)</th><th>Deep learning</th></tr>'+
+      '<tr><td><strong>Approach</strong></td><td>'+d.classical+'</td><td>'+d.dl+'</td></tr>'+
+      '<tr><td><strong>Strengths</strong></td><td>'+d.prosC+'</td><td>'+d.prosD+'</td></tr>'+
+      '<tr><td><strong>Takeaway</strong></td><td colspan="2">'+d.caveat+'</td></tr>';
+    document.getElementById('tbl').innerHTML=html;
+  }
+  document.getElementById('task').addEventListener('change',render); render();
+})();
+</script>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

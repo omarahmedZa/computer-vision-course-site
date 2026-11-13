@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Computer Vision — course map</title>
+<link rel="stylesheet" href="assets/lesson.css?v=1">
+<link rel="stylesheet" href="assets/figures.css?v=1">
+</head>
+<body data-page="index">
+<main>
+
+<nav class="topline">
+  <a href="./">Course map</a>
+  <span class="grow"></span>
+  <span class="pill hide-sm">8 lessons · 12 labs</span>
+  <button type="button" data-export>Export record</button>
+  <button type="button" data-reset>Reset</button>
+</nav>
+
+<header class="hero">
+  <div>
+    <p class="kicker">4 units · 8 lessons · 4 checkpoints · companion labs</p>
+    <h1>Computer Vision, from pixels to learned representations</h1>
+    <p class="sub">Each lesson builds intuition, math, and algorithmic understanding from first principles — with worked examples, visual/interactive demos, common pitfalls, and retrieval checks. Labs scored: <strong data-labs-count>0 / 12</strong>.</p>
+    <a class="continue" data-continue href="lessons/001-introduction-to-computer-vision.html">Start → Lesson 01</a>
+  </div>
+  <div class="ring" style="--p:0">
+    <div class="inner">
+      <span class="pct">0%</span>
+      <span class="cap">complete</span>
+    </div>
+  </div>
+</header>
+
+<p style="font-size:.9rem;color:var(--ink-soft);margin-top:1.2rem">
+  <span class="dot"></span> not started &nbsp; <span class="dot part"></span> in progress &nbsp; <span class="dot done"></span> graded.
+  Scores are stored on this device only.
+</p>
+
+<a class="tour-banner" href="tour.html">
+  <span class="k">New here?</span>
+  <span class="body"><strong>Take the 2-minute tour</strong> — how lessons are structured, what the figures and labs do, and how to use the checks.</span>
+  <span class="go">Open →</span>
+</a>
+
+<section class="unit" data-unit="1" id="unit-1">
+  <div class="unit-head">
+    <h2>Unit 1 · Images as signals</h2>
+    <span class="meta">1 lesson</span>
+    <span class="bar"><i></i></span>
+  </div>
+  <ol class="topics">
+    <li class="topic" data-lesson="001" data-unit="1">
+      <span class="topic-num">01</span>
+      <span class="topic-main">
+        <span class="dot"></span>
+        <a class="topic-link" href="lessons/001-introduction-to-computer-vision.html">Introduction to Computer Vision</a>
+        <span class="topic-objective">Explain what CV is, describe the vision pipeline, and represent images as signals with correct pixel, color, histogram, and convolution operations.</span>
+      </span>
+      <span class="topic-meta" data-mins="18 min">18 min</span>
+    </li>
+    <li class="topic" data-lab="L1a">
+      <span class="topic-num">L1a</span>
+      <span class="topic-main"><span class="dot"></span><a class="topic-link" href="labs/lab01-convolution.html">Convolution &amp; kernels</a><span class="topic-objective">Apply blur, sharpen, and edge kernels and see how correlation/convolution shape the output.</span></span>
+      <span class="topic-meta" data-mins="4 pts">4 pts</span>
+    </li>
+    <li class="topic" data-lab="L1b">
+      <span class="topic-num">L1b</span>
+      <span class="topic-main"><span class="dot"></span><a class="topic-link" href="labs/lab02-intensity-histogram.html">Intensity transforms &amp; histograms</a><span class="topic-objective">Explore brightness, contrast, gamma, and how histograms summarize image tone.</span></span>
+      <span class="topic-meta" data-mins="4 pts">4 pts</span>
+    </li>
+    <li class="checkpoint-row">Checkpoint 1 — image representation, color spaces, and filtering/convolution.</li>
+  </ol>
+</section>
+
+<section class="unit" data-unit="2" id="unit-2">
+  <div class="unit-head">
+    <h2>Unit 2 · Geometry and warping</h2>
+    <span class="meta">1 lesson</span>
+    <span class="bar"><i></i></span>
+  </div>
+  <ol class="topics">
+    <li class="topic" data-lesson="002" data-unit="2">
+      <span class="topic-num">02</span>
+      <span class="topic-main">
+        <span class="dot"></span>
+        <a class="topic-link" href="lessons/002-geometric-transformations-warping.html">Geometric Transformations &amp; Image Warping</a>
+        <span class="topic-objective">Model 2D deformations with transformation matrices and warp/restore images using forward vs inverse mapping with interpolation.</span>
+      </span>
+      <span class="topic-meta" data-mins="16 min">16 min</span>
+    </li>
+    <li class="topic" data-lab="L2a">
+      <span class="topic-num">L2a</span>
+      <span class="topic-main"><span class="dot"></span><a class="topic-link" href="labs/lab03-transforms.html">Transform matrices &amp; composition</a><span class="topic-objective">Compose translation, rotation, scale, shear, affine, and homography in homogeneous coordinates.</span></span>
+      <span class="topic-meta" data-mins="4 pts">4 pts</span>
+    </li>
+    <li class="topic" data-lab="L2b">
+      <span class="topic-num">L2b</span>
+      <span class="topic-main"><span class="dot"></span><a class="topic-link" href="labs/lab04-warping-interpolation.html">Forward vs inverse warping &amp; interpolation</a><span class="topic-objective">Compare warping directions and nearest vs bilinear interpolation on a grid.</span></span>
+      <span class="topic-meta" data-mins="4 pts">4 pts</span>
+    </li>
+    <li class="checkpoint-row">Checkpoint 2 — transforms, homogeneous coordinates, warping, and resampling.</li>
+  </ol>
+</section>
+
+<section class="unit" data-unit="3" id="unit-3">
+  <div class="unit-head">
+    <h2>Unit 3 · Local features and robust fitting</h2>
+    <span class="meta">3 lessons</span>
+    <span class="bar"><i></i></span>
+  </div>
+  <ol class="topics">
+    <li class="topic" data-lesson="003" data-unit="3">
+      <span class="topic-num">03</span>
+      <span class="topic-main">
+        <span class="dot"></span>
+        <a class="topic-link" href="lessons/003-corner-and-blob-detection.html">Corner and Blob Detection</a>
+        <span class="topic-objective">Detect corners and blobs using gradients, the Harris structure tensor, NMS, and scale-space (LoG/DoG) responses.</span>
+      </span>
+      <span class="topic-meta" data-mins="15 min">15 min</span>
+    </li>
+    <li class="topic" data-lab="L3a">
+      <span class="topic-num">L3a</span>
+      <span class="topic-main"><span class="dot"></span><a class="topic-link" href="labs/lab05-harris.html">Harris response &amp; NMS</a><span class="topic-objective">See how the structure tensor and response function highlight corners.</span></span>
+      <span class="topic-meta" data-mins="4 pts">4 pts</span>
+    </li>
+    <li class="topic" data-lesson="004" data-unit="3">
+      <span class="topic-num">04</span>
+      <span class="topic-main">
+        <span class="dot"></span>
+        <a class="topic-link" href="lessons/004-sift-feature-detectors-descriptors.html">Feature Detectors/Descriptors (SIFT)</a>
+        <span class="topic-objective">Describe SIFT from scale-space extrema to descriptors, and explain its invariances and basic matching.</span>
+      </span>
+      <span class="topic-meta" data-mins="16 min">16 min</span>
+    </li>
+    <li class="topic" data-lab="L4a">
+      <span class="topic-num">L4a</span>
+      <span class="topic-main"><span class="dot"></span><a class="topic-link" href="labs/lab06-sift-matching.html">SIFT descriptor &amp; matching intuition</a><span class="topic-objective">Build gradient-histogram intuition and compare descriptor distances/ratio test.</span></span>
+      <span class="topic-meta" data-mins="4 pts">4 pts</span>
+    </li>
+    <li class="topic" data-lesson="005" data-unit="3">
+      <span class="topic-num">05</span>
+      <span class="topic-main">
+        <span class="dot"></span>
+        <a class="topic-link" href="lessons/005-model-fitting-hough-ransac.html">Model Fitting (Hough Transform, RANSAC)</a>
+        <span class="topic-objective">Fit lines/circles with Hough voting and estimate models robustly with RANSAC under outliers.</span>
+      </span>
+      <span class="topic-meta" data-mins="15 min">15 min</span>
+    </li>
+    <li class="topic" data-lab="L5a">
+      <span class="topic-num">L5a</span>
+      <span class="topic-main"><span class="dot"></span><a class="topic-link" href="labs/lab07-hough.html">Hough voting</a><span class="topic-objective">Map edge points into parameter space and see votes accumulate for a line.</span></span>
+      <span class="topic-meta" data-mins="4 pts">4 pts</span>
+    </li>
+    <li class="topic" data-lab="L5b">
+      <span class="topic-num">L5b</span>
+      <span class="topic-main"><span class="dot"></span><a class="topic-link" href="labs/lab08-ransac.html">RANSAC line fitting</a><span class="topic-objective">Sample minimal sets, count inliers, and observe robust fitting amid outliers.</span></span>
+      <span class="topic-meta" data-mins="4 pts">4 pts</span>
+    </li>
+    <li class="checkpoint-row">Checkpoint 3 — local features, descriptors, matching, and robust model fitting.</li>
+  </ol>
+</section>
+
+<section class="unit" data-unit="4" id="unit-4">
+  <div class="unit-head">
+    <h2>Unit 4 · Composition, alignment, and learning</h2>
+    <span class="meta">3 lessons</span>
+    <span class="bar"><i></i></span>
+  </div>
+  <ol class="topics">
+    <li class="topic" data-lesson="006" data-unit="4">
+      <span class="topic-num">06</span>
+      <span class="topic-main">
+        <span class="dot"></span>
+        <a class="topic-link" href="lessons/006-image-blending.html">Image Blending</a>
+        <span class="topic-objective">Combine images smoothly using alpha/feathering and multi-scale (pyramid/Laplacian) blending while handling seams and exposure differences.</span>
+      </span>
+      <span class="topic-meta" data-mins="14 min">14 min</span>
+    </li>
+    <li class="topic" data-lab="L6a">
+      <span class="topic-num">L6a</span>
+      <span class="topic-main"><span class="dot"></span><a class="topic-link" href="labs/lab09-blending.html">Alpha, feathering &amp; pyramids</a><span class="topic-objective">Compare hard seams, feathered masks, and multi-band blending intuition.</span></span>
+      <span class="topic-meta" data-mins="4 pts">4 pts</span>
+    </li>
+    <li class="topic" data-lesson="007" data-unit="4">
+      <span class="topic-num">07</span>
+      <span class="topic-main">
+        <span class="dot"></span>
+        <a class="topic-link" href="lessons/007-image-registration.html">Image Registration</a>
+        <span class="topic-objective">Execute the end-to-end registration pipeline: match features, estimate transforms robustly, warp/resample, and evaluate alignment.</span>
+      </span>
+      <span class="topic-meta" data-mins="16 min">16 min</span>
+    </li>
+    <li class="topic" data-lab="L7a">
+      <span class="topic-num">L7a</span>
+      <span class="topic-main"><span class="dot"></span><a class="topic-link" href="labs/lab10-registration.html">End-to-end registration pipeline</a><span class="topic-objective">Step from correspondences to an estimated transform and a warped overlay.</span></span>
+      <span class="topic-meta" data-mins="4 pts">4 pts</span>
+    </li>
+    <li class="topic" data-lesson="008" data-unit="4">
+      <span class="topic-num">08</span>
+      <span class="topic-main">
+        <span class="dot"></span>
+        <a class="topic-link" href="lessons/008-deep-learning-computer-vision.html">Deep Learning–Based Computer Vision</a>
+        <span class="topic-objective">Explain CNN fundamentals and training basics, and relate learned representations to the classical CV tasks in this course.</span>
+      </span>
+      <span class="topic-meta" data-mins="17 min">17 min</span>
+    </li>
+    <li class="topic" data-lab="L8a">
+      <span class="topic-num">L8a</span>
+      <span class="topic-main"><span class="dot"></span><a class="topic-link" href="labs/lab11-cnn-features.html">Convolutional features &amp; receptive fields</a><span class="topic-objective">Visualize how stacked convolutions build features and grow receptive fields.</span></span>
+      <span class="topic-meta" data-mins="4 pts">4 pts</span>
+    </li>
+    <li class="topic" data-lab="L8b">
+      <span class="topic-num">L8b</span>
+      <span class="topic-main"><span class="dot"></span><a class="topic-link" href="labs/lab12-classical-to-dl.html">Classical pipelines to deep models</a><span class="topic-objective">Compare hand-crafted pipelines with end-to-end learned approaches on shared tasks.</span></span>
+      <span class="topic-meta" data-mins="4 pts">4 pts</span>
+    </li>
+    <li class="checkpoint-row">Checkpoint 4 — blending, registration, and deep learning for vision.</li>
+  </ol>
+</section>
+
+<section class="unit" id="downloads">
+  <div class="unit-head"><h3>Downloads</h3><span class="meta">placeholders</span></div>
+  <div class="table-wrap"><table>
+    <tr><th>Item</th><th>Notes</th></tr>
+    <tr><td>Cheat sheets</td><td>Placeholder — see <a href="output/README.md">output/README.md</a> (no compiled binaries fabricated).</td></tr>
+    <tr><td>Slide decks</td><td>Placeholder — see <a href="decks/README.md">decks/README.md</a>.</td></tr>
+    <tr><td>Curriculum</td><td><a href="CURRICULUM.md">CURRICULUM.md</a> (modules, prerequisites, objectives).</td></tr>
+  </table></div>
+</section>
+
+<div class="next">
+  <p><strong>How to use this.</strong> Read each lesson with the retrieval answers closed, interact with the figures/labs, then answer the check questions before revealing answers. Use the tour for a quick orientation, and export your record to track progress.</p>
+</div>
+
+</main>
+<script src="assets/course.js?v=1" defer></script>
+</body>
+</html>

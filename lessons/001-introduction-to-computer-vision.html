@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>01 — Introduction to Computer Vision</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+<meta name="description" content="What computer vision is, the vision pipeline, images as signals, pixels/channels, color spaces, histograms, intensity transforms, and convolution/filtering fundamentals.">
+</head>
+<body data-lesson="001">
+<main>
+
+<nav class="topline">
+  <a href="../index.html">← Course map</a>
+  <span class="pill">Lesson 01 / 08</span>
+  <span class="grow"></span>
+  <button type="button" data-theme-toggle>◐ auto</button>
+</nav>
+
+<header class="masthead">
+  <p class="kicker">Unit 1 · Images as signals · Lesson 1 of 8</p>
+  <h1>Introduction to Computer Vision</h1>
+  <p class="objective">You can explain what computer vision is, describe the vision pipeline, and represent images as sampled/quantized signals — applying correct pixel, channel, color-space, histogram, intensity-transform, and convolution operations.</p>
+</header>
+
+<h2>Why this matters</h2>
+<p class="lede">Computer vision turns raw pixels into measurements, descriptions, and decisions. Every later topic in this course — warping, features, fitting, blending, registration, and deep learning — begins with the same object: an image treated as a numerical signal.</p>
+<p>If you misread what a pixel value means, which channel is which, or how a kernel is applied, the rest of the pipeline becomes confidently wrong. Understanding images as signals (with geometry and photometry you can reason about) is the foundation for both classical algorithms and modern CNNs.</p>
+
+<div class="numstrip" role="group" aria-label="Key numbers">
+  <div><b>H×W×C</b><span>image tensor shape (height, width, channels)</span></div>
+  <div><b>[0, 255]</b><span>common 8-bit intensity range per channel</span></div>
+  <div><b>3×3</b><span>a small kernel that mixes a pixel with its neighbors</span></div>
+</div>
+
+<h2>The one core idea</h2>
+<p>An image is a <strong>function sampled on a grid and quantized in value</strong>. A grayscale image can be written as <code>I(x,y)</code> giving intensity at spatial location <code>(x,y)</code>; a color image gives a vector per location, e.g. <code>I(x,y) = [R,G,B]</code>. Most operations in vision are either <em>point-wise</em> (transform each pixel independently) or <em>local/neighborhood</em> (combine a pixel with nearby pixels via filtering/convolution).</p>
+
+<div class="keybox">
+  <span class="sym">Digital image ≈ sample(space) + quantize(intensity)</span>
+  <p>Spatial sampling sets resolution; value quantization sets bit depth. Neighborhood filtering is weighted aggregation over a local window.</p>
+</div>
+
+<h2>How it actually works</h2>
+
+<h3>1) What computer vision is and the vision pipeline</h3>
+<p><strong>Computer vision (CV)</strong> seeks to extract meaningful information from images or video — e.g. detecting edges/objects, estimating motion or geometry, recognizing content, or reconstructing scenes. A typical pipeline:</p>
+<table>
+  <tr><th>Stage</th><th>What happens</th><th>Examples</th></tr>
+  <tr><td>Acquire</td><td>Sensor measures light → digital image(s)</td><td>camera exposure, sampling, quantization</td></tr>
+  <tr><td>Preprocess</td><td>Improve/normalize the signal</td><td>denoise, resize, color convert, intensity adjust</td></tr>
+  <tr><td>Extract/compute</td><td>Find structures or correspondences</td><td>edges, corners, descriptors, matches, flow</td></tr>
+  <tr><td>Model/estimate</td><td>Fit geometry or make predictions</td><td>homography, RANSAC, classification/detection</td></tr>
+  <tr><td>Decide/use</td><td>Act on the result</td><td>align, blend, navigate, recognize</td></tr>
+</table>
+<p>Classical CV designs the middle stages explicitly; deep learning often learns parts of extraction/modeling from data — but both consume the same pixel signals.</p>
+
+<h3>2) Images as signals: sampling and quantization</h3>
+<p>A continuous scene intensity <code>f(x,y)</code> becomes digital by:</p>
+<ul>
+  <li><strong>Sampling (spatial):</strong> measure at discrete grid points → resolution <code>H×W</code>. Coarser sampling loses fine detail (aliasing can occur if high frequencies remain).</li>
+  <li><strong>Quantization (value):</strong> map continuous intensities to discrete levels. With <code>b</code> bits per channel there are <code>2^b</code> levels (8-bit → 256 levels, typically 0–255). Coarse quantization causes banding.</li>
+</ul>
+<p>Think of the image as a matrix/tensor: grayscale <code>H×W</code>, color often <code>H×W×3</code>. Each element is a sample of radiance/reflectance-related information after sensor and encoding choices.</p>
+
+<h3>3) Pixels, channels, and color spaces</h3>
+<p>A <strong>pixel</strong> is one grid sample; in a color image it holds multiple <strong>channels</strong>. Common representations:</p>
+<table>
+  <tr><th>Space</th><th>Channels</th><th>Intuition / use</th></tr>
+  <tr><td>RGB</td><td>Red, Green, Blue</td><td>Additive display-native; channels correlated with brightness and color</td></tr>
+  <tr><td>Grayscale</td><td>Luminance (1 channel)</td><td>Intensity structure; often <code>Y ≈ 0.299R + 0.587G + 0.114B</code> (luma approx.)</td></tr>
+  <tr><td>HSV</td><td>Hue, Saturation, Value</td><td>Separates color type/amount from brightness; useful for color-based segmentation intuition</td></tr>
+</table>
+<p><strong>RGB→Grayscale intuition:</strong> human vision is more sensitive to green; a weighted sum approximates perceived brightness. <strong>RGB↔HSV:</strong> hue encodes “which color” around a circle, saturation “how pure”, value “how bright”. Conversions are nonlinear/coordinate transforms on the same underlying color.</p>
+
+<figure class="fig">
+  <svg viewBox="0 0 720 180" role="img" aria-labelledby="rgb-t rgb-d">
+    <title id="rgb-t">A pixel as stacked channels</title>
+    <desc id="rgb-d">Three bars labeled R, G, B combine into one color patch; a grayscale bar shows luminance.</desc>
+    <rect x="40" y="30" width="120" height="36" fill="#d84a4a"/><text x="100" y="86" text-anchor="middle" font-size="12" fill="currentColor">R = 200</text>
+    <rect x="180" y="30" width="120" height="36" fill="#4ab06a"/><text x="240" y="86" text-anchor="middle" font-size="12" fill="currentColor">G = 120</text>
+    <rect x="320" y="30" width="120" height="36" fill="#4a78d8"/><text x="380" y="86" text-anchor="middle" font-size="12" fill="currentColor">B = 80</text>
+    <text x="470" y="55" font-size="20" fill="currentColor">→</text>
+    <rect x="500" y="22" width="70" height="52" fill="rgb(200,120,80)" stroke="currentColor" stroke-opacity=".3"/>
+    <text x="535" y="92" text-anchor="middle" font-size="12" fill="currentColor">RGB pixel</text>
+    <rect x="600" y="22" width="70" height="52" fill="rgb(140,140,140)" stroke="currentColor" stroke-opacity=".3"/>
+    <text x="635" y="92" text-anchor="middle" font-size="12" fill="currentColor">Gray ≈ 140</text>
+    <text x="360" y="130" text-anchor="middle" font-size="13" fill="currentColor">Same location, different channel views of the signal</text>
+  </svg>
+  <figcaption><strong>Channels are parallel measurements at each pixel.</strong> Color spaces are different coordinate systems over that information.</figcaption>
+</figure>
+
+<h3>4) Intensity transforms and histograms</h3>
+<p><strong>Point-wise intensity transforms</strong> map each value independently: <code>g(x,y)=T(I(x,y))</code>.</p>
+<ul>
+  <li><strong>Brightness/contrast (linear):</strong> <code>g = α·I + β</code> (scale changes contrast/gain, offset shifts brightness). Values must be clamped to valid range (e.g. [0,255]).</li>
+  <li><strong>Negative:</strong> <code>g = L-1 - I</code> for <code>L</code> levels.</li>
+  <li><strong>Gamma (power-law):</strong> <code>g = c·I^γ</code> (on normalized [0,1]) adjusts midtones nonlinearly.</li>
+  <li><strong>Thresholding (simple case):</strong> map to binary by comparing to a threshold — a decision, not just enhancement.</li>
+</ul>
+<p>A <strong>histogram</strong> counts how many pixels fall into each intensity bin. It summarizes global tone/contrast (spread, peaks, clipping) but discards spatial layout — two very different images can share a histogram.</p>
+
+<h3>5) Filtering and convolution fundamentals (prerequisite for all later topics)</h3>
+<p>A <strong>linear filter</strong> replaces each pixel by a weighted sum of neighbors defined by a <strong>kernel</strong> (mask). For kernel <code>K</code> centered at <code>(x,y)</code>:</p>
+<span class="formula">(I * K)(x,y) = \sum_i \sum_j I(x+i, y+j)\, K(i,j)</span>
+<p><strong>Correlation vs convolution:</strong> convolution flips the kernel horizontally and vertically before sliding; correlation does not. For symmetric kernels (Gaussian, box) they are identical. Many libraries call correlation “convolution” in deep learning contexts — always be clear about the convention.</p>
+<p><strong>Boundary handling:</strong> edges need padding/extension (zero, replicate, reflect) or cropping; choices affect borders. <strong>Stride</strong> (step size) downsamples when &gt;1.</p>
+
+<table>
+  <tr><th>Kernel type</th><th>Example (3×3 intuition)</th><th>Effect</th></tr>
+  <tr><td>Box/mean blur</td><td>all 1/9</td><td>Averages neighbors → smoothing, noise reduction, detail loss</td></tr>
+  <tr><td>Gaussian blur</td><td>center-weighted, sums to 1</td><td>Smoothing with better frequency behavior/less ringing</td></tr>
+  <tr><td>Sharpen</td><td>center &gt; 1, neighbors negative (e.g. [0,-1,0;-1,5,-1;0,-1,0])</td><td>Amplifies local differences/edges (can boost noise)</td></tr>
+  <tr><td>Edge/gradient (Sobel-like)</td><td>e.g. [-1,0,1;-2,0,2;-1,0,1] (x-derivative)</td><td>Responds strongly to intensity changes in a direction</td></tr>
+</table>
+
+<figure class="fig">
+  <svg viewBox="0 0 720 210" role="img" aria-labelledby="conv-t conv-d">
+    <title id="conv-t">A 3×3 kernel sliding over an image patch</title>
+    <desc id="conv-d">A 5 by 5 grid of pixel values with a highlighted 3 by 3 window multiplied by a kernel to produce one output value.</desc>
+    <g font-family="ui-monospace, monospace" font-size="12" fill="currentColor">
+      <text x="70" y="24">image patch</text>
+      <g transform="translate(40,35)">
+        <rect x="0" y="0" width="150" height="150" fill="none" stroke="currentColor" stroke-opacity=".25"/>
+        <g stroke="currentColor" stroke-opacity=".15">
+          <line x1="30" y1="0" x2="30" y2="150"/><line x1="60" y1="0" x2="60" y2="150"/><line x1="90" y1="0" x2="90" y2="150"/><line x1="120" y1="0" x2="120" y2="150"/>
+          <line x1="0" y1="30" x2="150" y2="30"/><line x1="0" y1="60" x2="150" y2="60"/><line x1="0" y1="90" x2="150" y2="90"/><line x1="0" y1="120" x2="150" y2="120"/>
+        </g>
+        <rect x="30" y="30" width="90" height="90" fill="var(--accent-soft, #f7ece9)" stroke="var(--accent, #a3231f)" stroke-width="2"/>
+        <text x="45" y="52" text-anchor="middle">10</text><text x="75" y="52" text-anchor="middle">10</text><text x="105" y="52" text-anchor="middle">10</text>
+        <text x="45" y="82" text-anchor="middle">10</text><text x="75" y="82" text-anchor="middle">50</text><text x="105" y="82" text-anchor="middle">10</text>
+        <text x="45" y="112" text-anchor="middle">10</text><text x="75" y="112" text-anchor="middle">10</text><text x="105" y="112" text-anchor="middle">10</text>
+      </g>
+      <text x="230" y="115" font-size="22">⊗</text>
+      <text x="300" y="24">kernel (sharpen-like idea)</text>
+      <g transform="translate(290,50)">
+        <rect x="0" y="0" width="90" height="90" fill="none" stroke="currentColor" stroke-opacity=".25"/>
+        <g stroke="currentColor" stroke-opacity=".15"><line x1="30" y1="0" x2="30" y2="90"/><line x1="60" y1="0" x2="60" y2="90"/><line x1="0" y1="30" x2="90" y2="30"/><line x1="0" y1="60" x2="90" y2="60"/></g>
+        <text x="15" y="22" text-anchor="middle">0</text><text x="45" y="22" text-anchor="middle">-1</text><text x="75" y="22" text-anchor="middle">0</text>
+        <text x="15" y="52" text-anchor="middle">-1</text><text x="45" y="52" text-anchor="middle">5</text><text x="75" y="52" text-anchor="middle">-1</text>
+        <text x="15" y="82" text-anchor="middle">0</text><text x="45" y="82" text-anchor="middle">-1</text><text x="75" y="82" text-anchor="middle">0</text>
+      </g>
+      <text x="420" y="115" font-size="22">→</text>
+      <g transform="translate(470,70)">
+        <rect x="0" y="0" width="54" height="54" fill="var(--code-bg, #f4f2ee)" stroke="currentColor"/>
+        <text x="27" y="33" text-anchor="middle" font-size="14">210</text>
+      </g>
+      <text x="497" y="145" text-anchor="middle">output pixel</text>
+      <text x="360" y="195" text-anchor="middle">Weighted neighbors: 5·50 + (-1)·10·4 = 210 (then clamp to range if needed)</text>
+    </g>
+  </svg>
+  <figcaption><strong>Local filtering = multiply-and-sum over a neighborhood.</strong> Different kernels encode different assumptions (smooth, sharpen, detect change).</figcaption>
+</figure>
+
+<p><strong>Why convolution matters everywhere:</strong> blur suppresses noise/high frequencies, gradients/edges highlight structure, and (as we’ll see in Lesson 8) CNNs learn kernel weights instead of hand-designing them.</p>
+
+<h2>Worked examples</h2>
+
+<h3>Example 1 — Sampling and quantization intuition</h3>
+<p>A smooth 1D intensity profile is sampled at 5 positions and quantized to 3-bit values (0–7): samples <code>[1.2, 2.9, 6.7, 6.1, 3.0]</code> → quantized <code>[1, 3, 7, 6, 3]</code>. Halving the sampling rate (keep positions 1,3,5) gives <code>[1, 7, 3]</code>, losing the dip between the two bright samples. Reducing bit depth merges nearby values (banding). <strong>Takeaway:</strong> resolution is a spatial decision; bit depth is a value-precision decision.</p>
+
+<h3>Example 2 — RGB to grayscale (weighted luma)</h3>
+<p>Pixel <code>(R,G,B)=(100, 150, 200)</code>. Using <code>Y ≈ 0.299R + 0.587G + 0.114B</code>:</p>
+<table>
+  <tr><th>Term</th><th class="num">Value</th></tr>
+  <tr><td>0.299 × 100</td><td class="num">29.9</td></tr>
+  <tr><td>0.587 × 150</td><td class="num">88.05</td></tr>
+  <tr><td>0.114 × 200</td><td class="num">22.8</td></tr>
+  <tr><td><strong>Y</strong></td><td class="num"><strong>≈ 140.75 → 141</strong></td></tr>
+</table>
+<p>Green contributes most to perceived brightness. A naive average <code>(100+150+200)/3 = 150</code> would overemphasize blue relative to perception.</p>
+
+<h3>Example 3 — 3×3 box blur on a center pixel</h3>
+<p>Patch: <code>[[10,10,10],[10,50,10],[10,10,10]]</code>, box kernel all <code>1/9</code>. Sum = <code>10*8 + 50 = 130</code>, output = <code>130/9 ≈ 14.44</code>. The bright center (50) is pulled down by darker neighbors — smoothing reduces local contrast/noise spikes.</p>
+
+<h3>Example 4 — Convolution vs correlation (flip matters when asymmetric)</h3>
+<p>1D signal <code>[1,2,3]</code>, kernel <code>[1,0,-1]</code> (a simple derivative-like filter). <strong>Correlation</strong> at center aligns as <code>1*1 + 2*0 + 3*(-1) = -2</code>. <strong>Convolution</strong> flips kernel to <code>[-1,0,1]</code> giving <code>1*(-1) + 2*0 + 3*1 = +2</code>. The sign/orientation changes — critical for directional gradients and consistent definitions.</p>
+
+<h2>The trap</h2>
+<div class="callout">
+  <span class="label">Common pitfalls</span>
+  <p><strong>“A pixel is just an RGB triple.”</strong> A pixel is a sample whose meaning depends on color space, range/encoding, gamma, and channel order. RGB in one library/file may be BGR in another; values may be [0,1] floats or [0,255] uint8.</p>
+  <p><strong>“Convolution and correlation are the same.”</strong> Only for symmetric kernels. With asymmetric/directional kernels, forgetting the flip flips the response.</p>
+  <p><strong>“Arithmetic is always safe.”</strong> In 8-bit images, <code>200 + 100</code> can overflow/wrap in some environments or saturate in others; sharpening can push values outside range — clamp/convert types deliberately.</p>
+  <p><strong>“Borders don’t matter.”</strong> Padding choice changes outputs near edges and can create artifacts; be explicit when results near boundaries matter.</p>
+</div>
+<p><strong>The tell:</strong> if colors look swapped, check channel order; if gradients point the wrong way, check flip convention; if highlights turn black or noisy, check dtype/range/clipping.</p>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>What is the difference between spatial sampling and intensity quantization, and what visual artifact can each cause when too coarse?
+    <details><summary>Answer</summary>
+      <p>Sampling measures the image at discrete spatial locations (resolution); too coarse loses detail and can cause aliasing. Quantization maps intensities to discrete levels (bit depth); too coarse causes banding/false contours.</p>
+    </details>
+  </li>
+  <li>Why is a weighted RGB-to-grayscale conversion (e.g. luma) often preferred over a simple average?
+    <details><summary>Answer</summary>
+      <p>Human perception is more sensitive to green and less to blue, so weighted luma better approximates perceived brightness; a simple average treats channels as equally important to luminance.</p>
+    </details>
+  </li>
+  <li>Compute the output of correlating the 1D signal <code>[2, 4, 6]</code> (centered) with kernel <code>[1, -1]</code> placed so it covers <code>[2,4]</code> as <code>2*1 + 4*(-1)</code>. What does a negative result indicate?
+    <details><summary>Answer</summary>
+      <p><code>2 - 4 = -2</code>. A negative response indicates a decrease in the kernel’s direction (a downward step/change) given that kernel’s sign convention.</p>
+    </details>
+  </li>
+  <li>When are convolution and correlation identical, and why do CNN libraries still need you to care about convention?
+    <details><summary>Answer</summary>
+      <p>They are identical for symmetric kernels (e.g. Gaussian/box). You must care because asymmetric/derivative kernels differ by a flip, and “convolution” in deep learning APIs often implements correlation; consistent interpretation matters for gradients/feature orientation.</p>
+    </details>
+  </li>
+</ol>
+
+<h2>Labs &amp; next steps</h2>
+<p>Practice the fundamentals interactively:</p>
+<ul>
+  <li><a href="../labs/lab01-convolution.html">L1a — Convolution &amp; kernels</a>: apply blur/sharpen/edge kernels and inspect outputs.</li>
+  <li><a href="../labs/lab02-intensity-histogram.html">L1b — Intensity transforms &amp; histograms</a>: explore brightness/contrast/gamma and histogram changes.</li>
+</ul>
+
+<div class="next">
+  <p><strong>Checkpoint 1 recap:</strong> an image is a sampled, quantized signal with channel meaning; point-wise transforms reshape tone, while convolution aggregates local neighborhoods — the basis for edges, features, and learned filters.</p>
+</div>
+
+<div class="labnav">
+  <a href="../index.html">← Course map</a>
+  <a href="002-geometric-transformations-warping.html">Lesson 02 · Geometric Transformations &amp; Warping →</a>
+</div>
+
+</main>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

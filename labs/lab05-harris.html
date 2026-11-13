@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L3a — Harris response &amp; NMS</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+</head>
+<body data-page="lab" data-lesson="L3a">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lab L3a · 4 pts</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead"><p class="kicker">Unit 3 · Companion lab</p><h1>Harris corner response &amp; NMS</h1><p class="objective">You can interpret a simplified Harris response on a synthetic pattern and see why thresholding and NMS isolate corners.</p></header>
+
+<h2>Interactive demo</h2>
+<p>Synthetic image with flat areas, edges, and corners. We compute a simplified structure tensor (box window) and Harris response <code>R=det(M)-k·trace(M)^2</code>. Adjust threshold and toggle NMS (3×3 local maxima).</p>
+<div class="fig">
+  <div class="fig-controls">
+    <label>Threshold <input id="th" type="range" min="1" max="100" step="1" value="25"></label>
+    <label>k <input id="k" type="range" min="0.04" max="0.06" step="0.005" value="0.05"></label>
+    <label><input id="nms" type="checkbox" checked> NMS</label>
+  </div>
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.5rem">
+    <div><div style="font-size:.7rem;color:var(--ink-faint);text-transform:uppercase">Input</div><canvas id="img" width="180" height="180" style="width:180px;height:180px;border:1px solid var(--rule);image-rendering:pixelated"></canvas></div>
+    <div><div style="font-size:.7rem;color:var(--ink-faint);text-transform:uppercase">Response &amp; detections</div><canvas id="resp" width="180" height="180" style="width:180px;height:180px;border:1px solid var(--rule);image-rendering:pixelated"></canvas></div>
+  </div>
+  <output id="info" style="display:block;margin-top:.5rem"></output>
+  <figcaption><strong>Corners vs edges.</strong> Strong positive responses cluster at junctions/corners; straight edges produce weak or negative response. NMS keeps isolated peaks.</figcaption>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>Why can a straight edge produce a low or negative Harris response even if gradient magnitude is high?
+    <details><summary>Answer</summary><p>Because intensity changes mainly in one direction: one eigenvalue of the structure tensor is large but the other is small, so the cornerness term <code>det(M)</code> is small relative to <code>k·trace(M)^2</code>.</p></details>
+  </li>
+  <li>What problem does non-maximum suppression solve after thresholding the response map?
+    <details><summary>Answer</summary><p>Thresholding can mark many neighboring pixels around the same corner; NMS retains only local maxima so each detected corner is represented once and better localized.</p></details>
+  </li>
+</ol>
+
+<div class="labnav"><a href="../lessons/003-corner-and-blob-detection.html">← Lesson 03</a><a href="../lessons/004-sift-feature-detectors-descriptors.html">Lesson 04 · SIFT →</a></div>
+</main>
+<script>
+(function(){
+  var W=60,H=60, img=[]; // synthetic: background, rectangle, L corner
+  for(var y=0;y<H;y++){img[y]=[]; for(var x=0;x<W;x++){
+    var v=40; if(x>10&&x<35&&y>10&&y<45) v=210; if(x>28&&x<50&&y>28&&y<50) v=210; if(x>18&&x<26&&y>18&&y<38) v=40; img[y][x]=v;
+  }}
+  var ic=document.getElementById('img'), rc=document.getElementById('resp');
+  var ictx=ic.getContext('2d'), rctx=rc.getContext('2d');
+  function I(x,y){ x=Math.max(0,Math.min(W-1,x)); y=Math.max(0,Math.min(H-1,y)); return img[y][x]; }
+  function compute(){
+    var k=+document.getElementById('k').value, th=+document.getElementById('th').value, nms=document.getElementById('nms').checked;
+    var R=[]; var maxR=1e-6;
+    for(var y=1;y<H-1;y++){R[y]=[]; for(var x=1;x<W-1;x++){
+      var ixx=0, iyy=0, ixy=0;
+      for(var yy=y-1;yy<=y+1;yy++) for(var xx=x-1;xx<=x+1;xx++){
+        var ix=(I(xx+1,yy)-I(xx-1,yy))*0.5, iy=(I(xx,yy+1)-I(xx,yy-1))*0.5;
+        ixx+=ix*ix; iyy+=iy*iy; ixy+=ix*iy;
+      }
+      var det=ixx*iyy-ixy*ixy, tr=ixx+iyy; var r=det-k*tr*tr; R[y][x]=r; if(r>maxR) maxR=r;
+    }}
+    var pts=[]; for(var y=2;y<H-2;y++) for(var x=2;x<W-2;x++){
+      var r=R[y][x]; if(r < th*(maxR/100)) continue;
+      if(nms){ var ok=true; for(var yy=y-1;yy<=y+1;yy++) for(var xx=x-1;xx<=x+1;xx++){ if(R[yy][xx]>r) ok=false; } if(!ok) continue; }
+      pts.push({x:x,y:y,r:r});
+    }
+    // draw
+    ictx.clearRect(0,0,180,180); rctx.clearRect(0,0,180,180);
+    var s=3;
+    for(var y=0;y<H;y++) for(var x=0;x<W;x++){ var v=img[y][x]; ictx.fillStyle='rgb('+v+','+v+','+v+')'; ictx.fillRect(x*s,y*s,s,s);
+      var rv=(R[y]&&R[y][x])?R[y][x]:0; var n=Math.max(0,Math.min(255,Math.round((rv/maxR)*255))); rctx.fillStyle='rgb('+n+','+Math.round(n*0.4)+','+Math.round(n*0.4)+')'; rctx.fillRect(x*s,y*s,s,s);
+    }
+    rctx.strokeStyle='#1f5f7a'; rctx.lineWidth=1.5;
+    pts.forEach(function(p){ rctx.strokeRect(p.x*s-2,p.y*s-2,s+4,s+4); });
+    document.getElementById('info').textContent='Detections: '+pts.length+'  (max R normalized; threshold='+th+'%, k='+k.toFixed(3)+', NMS '+(nms?'on':'off')+')';
+  }
+  ['th','k','nms'].forEach(function(id){document.getElementById(id).addEventListener('input',compute);});
+  compute();
+})();
+</script>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

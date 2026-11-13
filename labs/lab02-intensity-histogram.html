@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L1b — Intensity transforms &amp; histograms</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+<meta name="description" content="Interactive demo: brightness/contrast/gamma transforms and their effect on a histogram.">
+</head>
+<body data-page="lab" data-lesson="L1b">
+<main>
+
+<nav class="topline">
+  <a href="../index.html">← Course map</a>
+  <span class="pill">Lab L1b · 4 pts</span>
+  <span class="grow"></span>
+  <button type="button" data-theme-toggle>◐ auto</button>
+</nav>
+
+<header class="masthead">
+  <p class="kicker">Unit 1 · Images as signals · Companion lab</p>
+  <h1>Intensity transforms &amp; histograms</h1>
+  <p class="objective">You can predict how linear and gamma transforms change pixel values and how those changes appear in the histogram.</p>
+</header>
+
+<h2>Interactive demo</h2>
+<p>Adjust contrast <code>α</code>, brightness <code>β</code>, and gamma <code>γ</code> for a synthetic grayscale image. Mapping (on [0,1]): normalize → <code>g = clamp(α·I + β, 0,1)^γ</code> → scale back. Watch values and the histogram shift, stretch, or compress.</p>
+
+<div class="fig">
+  <div class="fig-controls">
+    <label>Contrast α <input id="a" type="range" min="0.4" max="2.0" step="0.05" value="1"></label>
+    <label>Brightness β <input id="b" type="range" min="-80" max="80" step="5" value="0"></label>
+    <label>Gamma γ <input id="g" type="range" min="0.4" max="2.5" step="0.05" value="1"></label>
+    <button type="button" id="reset">Reset</button>
+  </div>
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;margin-top:.5rem">
+    <div>
+      <div style="font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.2rem">Original</div>
+      <canvas id="orig" width="160" height="160" style="width:160px;height:160px;border:1px solid var(--rule);image-rendering:pixelated"></canvas>
+    </div>
+    <div>
+      <div style="font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.2rem">Transformed</div>
+      <canvas id="mod" width="160" height="160" style="width:160px;height:160px;border:1px solid var(--rule);image-rendering:pixelated"></canvas>
+    </div>
+    <div>
+      <div style="font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.2rem">Histograms</div>
+      <canvas id="hist" width="280" height="160" style="width:280px;height:160px;border:1px solid var(--rule);background:var(--card)"></canvas>
+    </div>
+  </div>
+  <output id="stats" style="display:block;margin-top:.5rem"></output>
+  <figcaption><strong>Point-wise remapping.</strong> Brightness shifts the histogram, contrast stretches/compresses it, and gamma bends midtones (γ&lt;1 brightens mids, γ&gt;1 darkens mids) without moving pure black/white as much.</figcaption>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>If you add a constant β to every pixel and values hit 255, what happens to the histogram and to detail in highlights?
+    <details><summary>Answer</summary>
+      <p>The histogram shifts right and piles up (saturates) at 255. Highlight detail is clipped/lost because distinct bright values become indistinguishable at the maximum.</p>
+    </details>
+  </li>
+  <li>Why can two very different images have the same histogram?
+    <details><summary>Answer</summary>
+      <p>A histogram counts intensity frequencies but discards spatial arrangement. Pixels can be rearranged into different structures while keeping the same distribution of values.</p>
+    </details>
+  </li>
+</ol>
+
+<div class="labnav">
+  <a href="lab01-convolution.html">← Lab L1a</a>
+  <a href="../lessons/002-geometric-transformations-warping.html">Lesson 02 · Geometric transforms →</a>
+</div>
+
+</main>
+<script>
+(function(){
+  var N=32, orig=[];
+  for(var y=0;y<N;y++){ orig[y]=[]; for(var x=0;x<N;x++){
+    var v = 40 + 80*(x/N) + 60*(y/N) + ( (x>8&&x<20&&y>10&&y<22)?70:0 ) + ((x+y)%7)*3;
+    orig[y][x]=Math.max(0,Math.min(255,Math.round(v)));
+  }}
+  var oc=document.getElementById('orig'), mc=document.getElementById('mod'), hc=document.getElementById('hist');
+  var octx=oc.getContext('2d'), mctx=mc.getContext('2d'), hctx=hc.getContext('2d');
+  function drawImg(ctx,data){ var s=160/N; for(var y=0;y<N;y++) for(var x=0;x<N;x++){ var v=data[y][x]; ctx.fillStyle='rgb('+v+','+v+','+v+')'; ctx.fillRect(x*s,y*s,s,s);} }
+  function transform(a,b,g){
+    var out=[], hist0=new Array(256).fill(0), hist1=new Array(256).fill(0);
+    for(var y=0;y<N;y++){ out[y]=[]; for(var x=0;x<N;x++){
+      var I=orig[y][x]/255; hist0[orig[y][x]]++;
+      var v=(a*I + b/255); v=Math.max(0,Math.min(1,v)); v=Math.pow(v,g);
+      var o=Math.max(0,Math.min(255,Math.round(v*255))); out[y][x]=o; hist1[o]++;
+    }}
+    return {out:out,h0:hist0,h1:hist1};
+  }
+  function drawHist(h0,h1){
+    hctx.clearRect(0,0,280,160);
+    var max=1; for(var i=0;i<256;i++){ if(h0[i]>max)max=h0[i]; if(h1[i]>max)max=h1[i]; }
+    for(var i=0;i<256;i++){
+      var x=i*(260/255)+10;
+      var h0h=(h0[i]/max)*130, h1h=(h1[i]/max)*130;
+      hctx.fillStyle='rgba(120,120,120,0.45)'; hctx.fillRect(x,150-h0h,2,h0h);
+      hctx.fillStyle='rgba(163,35,31,0.55)'; hctx.fillRect(x,150-h1h,2,h1h);
+    }
+    hctx.fillStyle='rgba(120,120,120,0.8)'; hctx.fillRect(10,6,10,6); hctx.fillStyle=getComputedStyle(document.body).color; hctx.font='10px ui-monospace,monospace'; hctx.fillText('orig',24,12);
+    hctx.fillStyle='rgba(163,35,31,0.8)'; hctx.fillRect(70,6,10,6); hctx.fillStyle=getComputedStyle(document.body).color; hctx.fillText('transformed',84,12);
+  }
+  function render(){
+    var a=parseFloat(document.getElementById('a').value), b=parseFloat(document.getElementById('b').value), g=parseFloat(document.getElementById('g').value);
+    var r=transform(a,b,g);
+    drawImg(octx,orig); drawImg(mctx,r.out); drawHist(r.h0,r.h1);
+    document.getElementById('stats').textContent='α='+a.toFixed(2)+'  β='+b+'  γ='+g.toFixed(2)+'  (mapped on [0,1], clamped to [0,255])';
+  }
+  ['a','b','g'].forEach(function(id){ document.getElementById(id).addEventListener('input',render); });
+  document.getElementById('reset').addEventListener('click', function(){ document.getElementById('a').value=1; document.getElementById('b').value=0; document.getElementById('g').value=1; render(); });
+  render();
+})();
+</script>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L1a — Convolution &amp; kernels</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+<meta name="description" content="Interactive demo: apply blur, sharpen, and edge kernels to a synthetic image and inspect weighted sums.">
+</head>
+<body data-page="lab" data-lesson="L1a">
+<main>
+
+<nav class="topline">
+  <a href="../index.html">← Course map</a>
+  <span class="pill">Lab L1a · 4 pts</span>
+  <span class="grow"></span>
+  <button type="button" data-theme-toggle>◐ auto</button>
+</nav>
+
+<header class="masthead">
+  <p class="kicker">Unit 1 · Images as signals · Companion lab</p>
+  <h1>Convolution &amp; kernels</h1>
+  <p class="objective">You can apply a 3×3 kernel to a local neighborhood and predict how blur, sharpen, and edge filters change the output.</p>
+</header>
+
+<h2>Interactive demo</h2>
+<p>We use a small synthetic 7×7 grayscale patch (values 0–255) so you can see every number. Choose a kernel and hover/click a cell to inspect the 3×3 neighborhood and its weighted sum (zero-padded borders). Output is clamped to [0,255].</p>
+
+<div class="fig">
+  <div class="fig-controls">
+    <label>Kernel
+      <select id="kernel">
+        <option value="blur">Box blur (1/9)</option>
+        <option value="gauss">Gaussian-like blur</option>
+        <option value="sharpen">Sharpen</option>
+        <option value="sobelx">Sobel X (gradient)</option>
+        <option value="sobely">Sobel Y (gradient)</option>
+        <option value="identity">Identity</option>
+      </select>
+    </label>
+    <output id="sel">Select a center pixel</output>
+  </div>
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start;margin-top:.5rem">
+    <div>
+      <div style="font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.2rem">Input</div>
+      <canvas id="in" width="210" height="210" style="width:210px;height:210px;border:1px solid var(--rule);image-rendering:pixelated"></canvas>
+    </div>
+    <div>
+      <div style="font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.2rem">Output</div>
+      <canvas id="out" width="210" height="210" style="width:210px;height:210px;border:1px solid var(--rule);image-rendering:pixelated"></canvas>
+    </div>
+    <div style="min-width:220px">
+      <div style="font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.2rem">Kernel</div>
+      <pre id="kview" style="margin:0"></pre>
+      <div style="font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin:.6rem 0 .2rem">Computation</div>
+      <pre id="math" style="margin:0;white-space:pre-wrap"></pre>
+    </div>
+  </div>
+  <figcaption><strong>Neighborhood aggregation.</strong> Blur averages (smooths), sharpen emphasizes the center minus neighbors, and Sobel kernels respond to horizontal/vertical intensity changes (edges).</figcaption>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>A 3×3 box blur kernel sums to 1. What happens to a flat region (all pixels equal to 100) after applying it (ignoring borders)?
+    <details><summary>Answer</summary>
+      <p>It stays 100. A normalized averaging kernel preserves constant regions because the weighted sum of identical values equals that value.</p>
+    </details>
+  </li>
+  <li>Why does a Sobel X kernel produce a strong response at a vertical edge but near zero in a flat region?
+    <details><summary>Answer</summary>
+      <p>It computes a horizontal intensity difference (left vs right). A vertical edge has a large left–right change, while a flat region has nearly equal neighbors so positive and negative weights cancel.</p>
+    </details>
+  </li>
+</ol>
+
+<div class="labnav">
+  <a href="../lessons/001-introduction-to-computer-vision.html">← Lesson 01</a>
+  <a href="lab02-intensity-histogram.html">Lab L1b · Intensity &amp; histograms →</a>
+</div>
+
+</main>
+<script>
+(function(){
+  var N=7, cell=30;
+  var src=[
+    [20,20,20,20,20,20,20],
+    [20,40,40,40,40,40,20],
+    [20,40,200,200,200,40,20],
+    [20,40,200,255,200,40,20],
+    [20,40,200,200,200,40,20],
+    [20,40,40,40,40,40,20],
+    [20,20,20,20,20,20,20]
+  ];
+  var kernels={
+    blur:{k:[[1,1,1],[1,1,1],[1,1,1]], d:9},
+    gauss:{k:[[1,2,1],[2,4,2],[1,2,1]], d:16},
+    sharpen:{k:[[0,-1,0],[-1,5,-1],[0,-1,0]], d:1},
+    sobelx:{k:[[-1,0,1],[-2,0,2],[-1,0,1]], d:1},
+    sobely:{k:[[-1,-2,-1],[0,0,0],[1,2,1]], d:1},
+    identity:{k:[[0,0,0],[0,1,0],[0,0,0]], d:1}
+  };
+  var inc=document.getElementById('in'), outc=document.getElementById('out');
+  var ictx=inc.getContext('2d'), octx=outc.getContext('2d');
+  var sel=-1;
+  function clamp(v){return Math.max(0,Math.min(255,Math.round(v))); }
+  function get(x,y){ if(x<0||y<0||x>=N||y>=N) return 0; return src[y][x]; }
+  function apply(name){
+    var K=kernels[name]; var out=[];
+    for(var y=0;y<N;y++){ out[y]=[]; for(var x=0;x<N;x++){
+      var s=0; for(var j=-1;j<=1;j++) for(var i=-1;i<=1;i++) s += get(x+i,y+j)*K.k[j+1][i+1];
+      out[y][x]=clamp(s/K.d);
+    }} return out;
+  }
+  function drawGrid(ctx, data, hi){
+    ctx.clearRect(0,0,210,210);
+    for(var y=0;y<N;y++) for(var x=0;x<N;x++){
+      var v=data[y][x]; ctx.fillStyle='rgb('+v+','+v+','+v+')';
+      ctx.fillRect(x*cell,y*cell,cell,cell);
+      ctx.strokeStyle='rgba(127,127,127,0.25)'; ctx.strokeRect(x*cell,y*cell,cell,cell);
+      ctx.fillStyle = v>140? '#111':'#f5f5f5';
+      ctx.font='10px ui-monospace, monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(v, x*cell+15, y*cell+15);
+    }
+    if(hi){ ctx.strokeStyle='#a3231f'; ctx.lineWidth=2; ctx.strokeRect(hi.x*cell,hi.y*cell,cell,cell); ctx.lineWidth=1; }
+  }
+  function showMath(x,y,name){
+    var K=kernels[name], terms=[], s=0;
+    for(var j=-1;j<=1;j++) for(var i=-1;i<=1;i++){
+      var pv=get(x+i,y+j), kv=K.k[j+1][i+1]; s+=pv*kv; terms.push(pv+'*'+kv);
+    }
+    var raw=s/K.d;
+    document.getElementById('sel').textContent='Center ('+x+','+y+')  in='+src[y][x]+'  out='+clamp(raw);
+    document.getElementById('kview').textContent=K.k.map(function(r){return r.map(function(v){return ('   '+v).slice(-3);}).join(' ');}).join('\n')+'\n÷ '+K.d;
+    document.getElementById('math').textContent='sum = '+terms.slice(0,3).join(' + ')+'\n    + '+terms.slice(3,6).join(' + ')+'\n    + '+terms.slice(6,9).join(' + ')+'\n= '+s+'  →  '+s+'/'+K.d+' = '+raw.toFixed(2)+' → '+clamp(raw);
+  }
+  function render(){
+    var name=document.getElementById('kernel').value;
+    var out=apply(name);
+    var hi = sel>=0? {x:sel%N,y:Math.floor(sel/N)}:null;
+    drawGrid(ictx, src, hi); drawGrid(octx, out, hi);
+    if(hi) showMath(hi.x,hi.y,name);
+  }
+  function pick(evt, canvas){
+    var r=canvas.getBoundingClientRect();
+    var x=Math.floor((evt.clientX-r.left)/r.width*N);
+    var y=Math.floor((evt.clientY-r.top)/r.height*N);
+    if(x>=0&&y>=0&&x<N&&y<N){ sel=y*N+x; render(); }
+  }
+  inc.addEventListener('click', function(e){pick(e,inc);});
+  outc.addEventListener('click', function(e){pick(e,outc);});
+  document.getElementById('kernel').addEventListener('change', function(){ sel=3*N+3; render(); });
+  sel=3*N+3; render();
+})();
+</script>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

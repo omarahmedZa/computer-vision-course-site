@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L8a — Convolutional features &amp; receptive fields</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+</head>
+<body data-page="lab" data-lesson="L8a">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lab L8a · 4 pts</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead"><p class="kicker">Unit 4 · Companion lab</p><h1>Convolutional features &amp; receptive fields</h1><p class="objective">You can see how stacked 3×3 convolutions respond to patterns and how receptive field size grows with depth.</p></header>
+
+<h2>Interactive demo</h2>
+<p>A simple 1D/2D intuition: select a stack depth (1–3 layers of 3×3, stride 1) and a learned-like filter pattern (edge/spot). We show the effective receptive field size and a toy response on a synthetic input.</p>
+<div class="fig">
+  <div class="fig-controls">
+    <label>Depth <input id="d" type="range" min="1" max="3" step="1" value="1"></label>
+    <label>Filter
+      <select id="f"><option value="edge">Vertical edge</option><option value="spot">Center spot</option><option value="horiz">Horizontal edge</option></select>
+    </label>
+  </div>
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.5rem">
+    <canvas id="cv" width="520" height="220" style="width:100%;max-width:520px;height:auto;border:1px solid var(--rule);background:var(--card)"></canvas>
+  </div>
+  <output id="info" style="display:block;margin-top:.5rem"></output>
+  <figcaption><strong>Composition.</strong> Each 3×3 layer expands the receptive field by 2 pixels per side (stride 1). Deeper units integrate evidence over larger regions, enabling hierarchical features.</figcaption>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>If you stack two 3×3 convolutions with stride 1 (and no pooling), what is the receptive field size of an output unit relative to the input?
+    <details><summary>Answer</summary><p>5×5. The first layer sees 3×3 of the input, and the second combines a 3×3 neighborhood of those, extending one pixel in each direction.</p></details>
+  </li>
+  <li>Why do CNNs use weight sharing in convolutional layers for images?
+    <details><summary>Answer</summary><p>It exploits the locality and (approximate) translation structure of images, greatly reducing parameters compared to dense connections and allowing the same pattern detector to respond anywhere in the image.</p></details>
+  </li>
+</ol>
+
+<div class="labnav"><a href="../lessons/008-deep-learning-computer-vision.html">← Lesson 08</a><a href="lab12-classical-to-dl.html">Lab L8b · Classical to DL →</a></div>
+</main>
+<script>
+(function(){
+  var cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  function clamp(v){return Math.max(0,Math.min(255,v));}
+  function makeInput(){
+    var N=15, a=[]; for(var y=0;y<N;y++){a[y]=[]; for(var x=0;x<N;x++){ var v=30; if(x>=7) v=180; if(x>4&&x<7&&y>4&&y<10) v=220; if(y>10&&y<13&&x>9) v=80; a[y][x]=v; }} return a;
+  }
+  var inp=makeInput();
+  var filters={
+    edge:[[-1,0,1],[-1,0,1],[-1,0,1]],
+    horiz:[[-1,-1,-1],[0,0,0],[1,1,1]],
+    spot:[[-1,-1,-1],[-1,8,-1],[-1,-1,-1]]
+  };
+  function conv(a,k){
+    var N=a.length, out=[]; for(var y=0;y<N;y++){out[y]=[]; for(var x=0;x<N;x++){ var s=0; for(var j=-1;j<=1;j++) for(var i=-1;i<=1;i++){ var yy=y+j,xx=x+i; if(yy<0||xx<0||yy>=N||xx>=N) continue; s+=a[yy][xx]*k[j+1][i+1]; } out[y][x]=s; }} return out;
+  }
+  function relu(a){ return a.map(function(r){return r.map(function(v){return Math.max(0,v);});}); }
+  function normMap(a){ var mn=1e9,mx=-1e9; a.forEach(function(r){r.forEach(function(v){if(v<mn)mn=v;if(v>mx)mx=v;});}); var d=mx-mn||1; return a.map(function(r){return r.map(function(v){return (v-mn)/d;});}); }
+  function render(){
+    var depth=+document.getElementById('d').value, fname=document.getElementById('f').value; var k=filters[fname];
+    var a=inp, maps=[normMap(inp.map(function(r){return r.slice();}))];
+    for(var i=0;i<depth;i++){ a=relu(conv(a,k)); maps.push(normMap(a)); }
+    ctx.clearRect(0,0,520,220); var cell=10, N=15;
+    function drawMap(m,ox,oy,label){
+      ctx.fillStyle=getComputedStyle(document.body).color; ctx.font='12px ui-monospace,monospace'; ctx.fillText(label,ox,oy-6);
+      for(var y=0;y<N;y++) for(var x=0;x<N;x++){ var v=Math.round(m[y][x]*255); ctx.fillStyle='rgb('+v+','+v+','+v+')'; ctx.fillRect(ox+x*cell,oy+y*cell,cell,cell); }
+      ctx.strokeStyle='rgba(120,120,120,.3)'; ctx.strokeRect(ox,oy,N*cell,N*cell);
+    }
+    drawMap(maps[0],20,30,'Input');
+    var titles=['After layer 1','After layer 2','After layer 3'];
+    for(var i=1;i<maps.length;i++) drawMap(maps[i],20+i*170,30,titles[i-1]);
+    // receptive field box on input for center pixel
+    var rf=1+2*depth; var cx=7, cy=7; var x0=cx-Math.floor(rf/2), y0=cy-Math.floor(rf/2);
+    ctx.strokeStyle='#a3231f'; ctx.lineWidth=2; ctx.strokeRect(20+x0*cell,30+y0*cell,rf*cell,rf*cell); ctx.lineWidth=1;
+    document.getElementById('info').textContent='Depth '+depth+' → receptive field '+rf+'×'+rf+' (stride 1, 3×3). Deeper layers respond to larger structures composed from earlier local responses.';
+  }
+  document.getElementById('d').addEventListener('input',render); document.getElementById('f').addEventListener('change',render); render();
+})();
+</script>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

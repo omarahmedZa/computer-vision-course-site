@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>08 — Deep Learning–Based Computer Vision</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+<meta name="description" content="From pixels/features to learned representations: CNN fundamentals, training basics, and how deep learning extends classical computer vision.">
+</head>
+<body data-lesson="008">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lesson 08 / 08</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead">
+  <p class="kicker">Unit 4 · Composition, alignment, and learning · Lesson 8 of 8</p>
+  <h1>Deep Learning–Based Computer Vision</h1>
+  <p class="objective">You can explain CNN fundamentals and training basics, and relate learned representations to the classical CV tasks in this course.</p>
+</header>
+
+<h2>Why this matters</h2>
+<p class="lede">Classical vision builds pipelines from hand-designed operations: filters, gradients, corners, descriptors, geometric models. Deep learning replaces (or augments) many of these with representations <strong>learned from data</strong>, often achieving strong performance when enough labeled data and compute are available.</p>
+<p>Understanding deep learning for vision doesn’t mean forgetting the classics. Convolutions, pyramids, features, alignment, and geometry still matter: they explain what CNNs compute, how architectures are structured, and when classical methods remain the right or necessary tool.</p>
+
+<h2>The one core idea</h2>
+<p>A <strong>Convolutional Neural Network (CNN)</strong> learns a hierarchy of filters: early layers respond to simple local patterns (edges/textures, like Lesson 1 filters), deeper layers combine them into larger, more semantic structures because the <strong>receptive field</strong> grows. Training adjusts weights by minimizing a loss on data via gradient-based optimization.</p>
+
+<div class="keybox">
+  <span class="sym">learned convolution + nonlinearity + hierarchy = task-specific representation</span>
+  <p>CNNs generalize the filtering ideas you already know: instead of choosing a Sobel kernel, the model learns kernels that are useful for the objective.</p>
+</div>
+
+<h2>How it actually works</h2>
+
+<h3>1) From hand-crafted features to learned representations</h3>
+<p>Classical pipelines (e.g. detect corners/blobs → SIFT descriptor → match → RANSAC → warp) encode expert assumptions about invariance and geometry. Learning-based approaches optimize feature extraction and prediction end-to-end for a task (classification, detection, segmentation, matching), discovering which patterns matter in the data. Trade-offs: data/compute requirements, interpretability, and robustness outside the training distribution vs flexibility and performance on in-distribution problems.</p>
+
+<h3>2) CNN fundamentals</h3>
+<p><strong>Convolutional layer:</strong> applies many learnable kernels over spatial locations (sharing weights across the image) to produce feature maps. Compared to fully connected layers, this exploits locality and translation structure, drastically reducing parameters.</p>
+<ul>
+  <li><strong>Feature maps:</strong> each filter produces a response map; stacking layers builds combinations of earlier responses.</li>
+  <li><strong>Padding/stride:</strong> padding controls output size/border handling; stride downsamples spatial resolution (see Lesson 1 concepts).</li>
+  <li><strong>Nonlinearity:</strong> activations (e.g. ReLU) allow the network to model complex functions (a stack of purely linear convolutions would collapse to a linear map).</li>
+  <li><strong>Pooling:</strong> local aggregation (max/average) reduces spatial size, adds some local translation tolerance, and increases context for later layers.</li>
+  <li><strong>Receptive field:</strong> the region of the input that influences a unit’s output. Deeper units (or units after striding/pooling/larger kernels) see larger regions, enabling composition from edges → parts → objects.</li>
+</ul>
+
+<figure class="fig">
+  <svg viewBox="0 0 720 190" role="img" aria-labelledby="cnn-t cnn-d">
+    <title id="cnn-t">CNN hierarchy and growing receptive field</title>
+    <desc id="cnn-d">Stacked blocks from image to features to prediction with receptive fields widening through layers.</desc>
+    <g transform="translate(30,25)" font-size="12" fill="currentColor">
+      <rect x="0" y="30" width="90" height="90" fill="none" stroke="currentColor"/>
+      <text x="45" y="140" text-anchor="middle">image</text>
+      <g stroke="var(--accent,#a3231f)" fill="none">
+        <rect x="120" y="40" width="70" height="70"/><text x="155" y="130" text-anchor="middle" stroke="none" fill="currentColor">conv+ReLU</text>
+        <rect x="220" y="45" width="60" height="60"/><text x="250" y="130" text-anchor="middle" stroke="none" fill="currentColor">pool/conv</text>
+        <rect x="310" y="50" width="50" height="50"/><text x="335" y="130" text-anchor="middle" stroke="none" fill="currentColor">deeper</text>
+      </g>
+      <rect x="395" y="55" width="90" height="40" fill="var(--code-bg,#f4f2ee)" stroke="currentColor"/>
+      <text x="440" y="80" text-anchor="middle">features / head</text>
+      <rect x="520" y="55" width="90" height="40" fill="var(--accent-soft,#f7ece9)" stroke="currentColor"/>
+      <text x="565" y="80" text-anchor="middle">prediction</text>
+      <path d="M95 75 L115 75 M195 75 L215 75 M285 75 L305 75 M365 75 L390 75 M490 75 L515 75" stroke="currentColor" marker-end="url(#m)"/>
+      <rect x="10" y="40" width="20" height="20" fill="rgba(31,95,122,.25)" stroke="#1f5f7a"/>
+      <rect x="5" y="35" width="40" height="40" fill="rgba(31,95,122,.12)" stroke="#1f5f7a"/>
+      <text x="120" y="20" font-size="11">receptive field grows with depth</text>
+      <defs><marker id="m" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/></marker></defs>
+    </g>
+  </svg>
+  <figcaption><strong>Hierarchy.</strong> Local, shared filters compose into larger-context features; pooling/stride trade spatial detail for context and efficiency.</figcaption>
+</figure>
+
+<h3>3) Training basics (introductory)</h3>
+<p><strong>Supervised learning (common case):</strong> given inputs and labels/targets, define a <strong>loss</strong> measuring prediction error (e.g. cross-entropy for classification, regression losses for coordinates). <strong>Optimization</strong> (e.g. stochastic gradient descent and variants) computes gradients of the loss w.r.t. weights (backpropagation through the network graph) and updates parameters to reduce loss.</p>
+<p>Key practical ideas: split data (train/validation/test) to monitor generalization; <strong>overfitting</strong> occurs when the model memorizes training data — mitigated by more data, augmentation, regularization, early stopping, or architecture choices. Performance depends on data quality/coverage, labels, and compute.</p>
+
+<h3>4) How deep learning relates to and extends classical CV tasks</h3>
+<table>
+  <tr><th>Classical topic</th><th>Deep learning connection/extension</th></tr>
+  <tr><td>Convolution/filtering (L1)</td><td>CNNs learn filter banks instead of fixed kernels; early features often resemble edges/textures.</td></tr>
+  <tr><td>Transforms/warping (L2)</td><td>Spatial Transformer-style modules learn to warp/align; data augmentation uses geometric transforms; alignment remains critical.</td></tr>
+  <tr><td>Corners/blobs/SIFT (L3–L4)</td><td>Learned detectors/descriptors and end-to-end matching networks replace or complement hand-crafted pipelines for robustness.</td></tr>
+  <tr><td>Hough/RANSAC/fitting (L5, L7)</td><td>Models can regress parameters or correspondences; classical robust estimation is still used to enforce geometry or verify predictions.</td></tr>
+  <tr><td>Blending/registration (L6–L7)</td><td>Learned alignment, stitching, and compositing models exist, but rely on geometric/photometric principles and often optimize similarity/alignment objectives.</td></tr>
+</table>
+<p><strong>When classical methods remain valuable:</strong> limited data/labels, need for interpretability or guarantees, well-defined geometry (calibration, SLAM components), strict resource constraints, or when the physics/geometry is known and should be enforced explicitly.</p>
+
+<h2>Worked examples</h2>
+
+<h3>Example 1 — Receptive field growth</h3>
+<p>Two stacked 3×3 convolutions (stride 1): a neuron in layer 2 sees a 3×3 region of layer 1, each of which sees 3×3 of the input → total 5×5 receptive field. Add pooling/stride and deeper stacks and the field grows to cover large objects, enabling decisions based on context rather than isolated pixels (connects to “why features matter” but learned).</p>
+
+<h3>Example 2 — Learned edge-like filters</h3>
+<p>In a trained first convolutional layer for natural images, many kernels resemble oriented edge or color-contrast detectors — analogous in role to Sobel/Gabor-like filters from Lesson 1/3, but optimized for the downstream task and data distribution.</p>
+
+<h3>Example 3 — Classical + deep in registration</h3>
+<p>A modern pipeline might use a learned feature matcher to propose dense/robust correspondences, then estimate a homography with RANSAC (classical) for geometric consistency, then warp with inverse interpolation (classical). Deep components improve perception; geometric components enforce valid models.</p>
+
+<h2>The trap</h2>
+<div class="callout">
+  <span class="label">Common pitfalls</span>
+  <p><strong>“CNNs understand images.”</strong> They learn statistical correlations that optimize a loss on given data; they can fail on distribution shifts, spurious cues, or adversarial cases without true semantic/geometric understanding.</p>
+  <p><strong>Ignoring data and labels:</strong> performance hinges on representative data, correct labels, and appropriate evaluation; architecture alone is not enough.</p>
+  <p><strong>Forgetting geometry:</strong> tasks involving precise alignment, multi-view consistency, or physical constraints often benefit from explicit geometric models (transforms, RANSAC, calibration) alongside or inside learned systems.</p>
+  <p><strong>Parameter vs. compute intuition:</strong> convolution shares weights spatially (fewer parameters than dense layers on images) but can still be computationally heavy; receptive field and resolution choices involve trade-offs.</p>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>What is the receptive field of a CNN unit, and why does it typically grow in deeper layers?
+    <details><summary>Answer</summary><p>It is the region of the input image that can influence that unit’s activation. It grows with depth because each layer aggregates over a local neighborhood of the previous layer (and/or due to stride/pooling), so deeper units combine information from larger input areas.</p></details>
+  </li>
+  <li>How do learned convolutional filters relate to the hand-designed kernels discussed in Lesson 1?
+    <details><summary>Answer</summary><p>Both compute local weighted sums (filter responses) over neighborhoods. Hand-designed kernels encode fixed operations (blur, edge detection), while CNNs learn kernel weights from data to produce features useful for the training objective.</p></details>
+  </li>
+  <li>Give one example of how a classical CV method remains useful in a deep learning–based vision pipeline.
+    <details><summary>Answer</summary><p>Examples: using RANSAC to robustly estimate a homography from learned correspondences; applying geometric warping/interpolation; enforcing epipolar/planar constraints; using classical preprocessing or augmentation when appropriate.</p></details>
+  </li>
+</ol>
+
+<h2>Labs &amp; next steps</h2>
+<ul>
+  <li><a href="../labs/lab11-cnn-features.html">L8a — Convolutional features &amp; receptive fields</a></li>
+  <li><a href="../labs/lab12-classical-to-dl.html">L8b — Classical pipelines to deep models</a></li>
+</ul>
+
+<div class="next"><p><strong>Course recap:</strong> you moved from pixels and convolution, through geometry, features, robust fitting, blending, and registration, to learned representations — a connected view of classical and deep computer vision.</p></div>
+
+<div class="labnav"><a href="007-image-registration.html">← Lesson 07</a><a href="../index.html">Course map →</a></div>
+</main>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

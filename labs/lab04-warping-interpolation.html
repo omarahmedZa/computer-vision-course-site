@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L2b — Forward vs inverse warping &amp; interpolation</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+</head>
+<body data-page="lab" data-lesson="L2b">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lab L2b · 4 pts</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead"><p class="kicker">Unit 2 · Companion lab</p><h1>Forward vs inverse warping &amp; interpolation</h1><p class="objective">You can explain why inverse warping avoids holes and compare nearest-neighbor with bilinear interpolation.</p></header>
+
+<h2>Interactive demo</h2>
+<p>A small source grid is rotated/scaled. <strong>Forward</strong> mapping sends each source pixel to a rounded destination (may leave holes/overwrites). <strong>Inverse</strong> mapping fills every destination by sampling the source with nearest or bilinear interpolation.</p>
+<div class="fig">
+  <div class="fig-controls">
+    <label>Angle° <input id="ang" type="range" min="-45" max="45" step="5" value="20"></label>
+    <label>Scale <input id="sc" type="range" min="0.6" max="1.6" step="0.1" value="1.1"></label>
+    <label>Interpolation
+      <select id="interp"><option value="nearest">Nearest</option><option value="bilinear">Bilinear</option></select>
+    </label>
+  </div>
+  <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-top:.5rem">
+    <div><div style="font-size:.7rem;color:var(--ink-faint);text-transform:uppercase">Source</div><canvas id="src" width="140" height="140" style="width:140px;height:140px;border:1px solid var(--rule);image-rendering:pixelated"></canvas></div>
+    <div><div style="font-size:.7rem;color:var(--ink-faint);text-transform:uppercase">Forward (holes)</div><canvas id="fwd" width="140" height="140" style="width:140px;height:140px;border:1px solid var(--rule);image-rendering:pixelated"></canvas></div>
+    <div><div style="font-size:.7rem;color:var(--ink-faint);text-transform:uppercase">Inverse (filled)</div><canvas id="inv" width="140" height="140" style="width:140px;height:140px;border:1px solid var(--rule);image-rendering:pixelated"></canvas></div>
+  </div>
+  <output id="msg" style="display:block;margin-top:.5rem"></output>
+  <figcaption><strong>Inverse + interpolation</strong> visits every output pixel. Nearest keeps sharp/blocky values; bilinear blends neighbors for smoother results (and can blur edges).</figcaption>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>In forward warping, why can holes appear in the output image?
+    <details><summary>Answer</summary><p>Source pixels map to (often rounded) destination locations that may not cover every output pixel, especially under magnification/rotation, leaving some destinations unassigned.</p></details>
+  </li>
+  <li>When might nearest-neighbor interpolation be preferred over bilinear?
+    <details><summary>Answer</summary><p>When values represent discrete labels/masks or exact categories that must not be blended (e.g. segmentation maps), or when preserving original intensities/sharpness is more important than smoothness.</p></details>
+  </li>
+</ol>
+
+<div class="labnav"><a href="lab03-transforms.html">← Lab L2a</a><a href="../lessons/003-corner-and-blob-detection.html">Lesson 03 · Corners &amp; blobs →</a></div>
+</main>
+<script>
+(function(){
+  var N=20, size=140, scv=document.getElementById('src'), fcv=document.getElementById('fwd'), icv=document.getElementById('inv');
+  var sctx=scv.getContext('2d'), fctx=fcv.getContext('2d'), ictx=icv.getContext('2d');
+  var src=[]; for(var y=0;y<N;y++){src[y]=[]; for(var x=0;x<N;x++){ var cx=x-N/2, cy=y-N/2; src[y][x]= (Math.floor(x/4)+Math.floor(y/4))%2? 220:60; if(Math.abs(cx)<3&&Math.abs(cy)<3) src[y][x]=30; }}
+  function sample(x,y,mode){ if(x<0||y<0||x>=N-1||y>=N-1){ var ix=Math.max(0,Math.min(N-1,Math.round(x))), iy=Math.max(0,Math.min(N-1,Math.round(y))); return src[iy][ix]; }
+    if(mode==='nearest'){ return src[Math.round(y)][Math.round(x)]; }
+    var x0=Math.floor(x), y0=Math.floor(y), dx=x-x0, dy=y-y0;
+    var v00=src[y0][x0], v10=src[y0][x0+1], v01=src[y0+1][x0], v11=src[y0+1][x0+1];
+    return v00*(1-dx)*(1-dy)+v10*dx*(1-dy)+v01*(1-dx)*dy+v11*dx*dy;
+  }
+  function render(){
+    var ang=(+document.getElementById('ang').value)*Math.PI/180, s=+document.getElementById('sc').value, mode=document.getElementById('interp').value;
+    var c=Math.cos(ang), si=Math.sin(ang), cell=size/N;
+    function draw(ctx,img){ ctx.clearRect(0,0,size,size); for(var y=0;y<N;y++) for(var x=0;x<N;x++){ var v=img[y][x]; if(v==null){ ctx.fillStyle='#b33'; ctx.fillRect(x*cell,y*cell,cell,cell); } else { v=Math.max(0,Math.min(255,Math.round(v))); ctx.fillStyle='rgb('+v+','+v+','+v+')'; ctx.fillRect(x*cell,y*cell,cell,cell);} }}
+    var fwd=[]; for(var y=0;y<N;y++){fwd[y]=[]; for(var x=0;x<N;x++) fwd[y][x]=null;}
+    var holes=0, cx=N/2, cy=N/2;
+    for(var y=0;y<N;y++) for(var x=0;x<N;x++){
+      var dx=x-cx, dy=y-cy; var xn = (c*dx - si*dy)/s + cx, yn=(si*dx + c*dy)/s + cy;
+      var xi=Math.round(xn), yi=Math.round(yn); if(xi>=0&&yi>=0&&xi<N&&yi<N) fwd[yi][xi]=src[y][x];
+    }
+    var inv=[]; for(var y=0;y<N;y++){inv[y]=[]; for(var x=0;x<N;x++){
+      var dx=x-cx, dy=y-cy; var xs = (c*dx + si*dy)*s + cx, ys=(-si*dx + c*dy)*s + cy; // inverse rotate/scale
+      inv[y][x]=sample(xs,ys,mode);
+    }}
+    for(var y=0;y<N;y++) for(var x=0;x<N;x++) if(fwd[y][x]==null) holes++;
+    draw(sctx,src); draw(fctx,fwd); draw(ictx,inv);
+    document.getElementById('msg').textContent='Forward mapping left '+holes+' destination cells unfilled (red). Inverse ('+mode+') filled all cells.';
+  }
+  ['ang','sc','interp'].forEach(function(id){document.getElementById(id).addEventListener('input',render);});
+  render();
+})();
+</script>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>04 — Feature Detectors/Descriptors (SIFT)</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+<meta name="description" content="SIFT pipeline: scale-space extrema, keypoint localization and orientation, descriptor construction, invariances, and matching basics.">
+</head>
+<body data-lesson="004">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lesson 04 / 08</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead">
+  <p class="kicker">Unit 3 · Local features and robust fitting · Lesson 4 of 8</p>
+  <h1>Feature Detectors/Descriptors (SIFT)</h1>
+  <p class="objective">You can describe SIFT’s pipeline from scale-space extrema to descriptors and explain its invariances and basic matching.</p>
+</header>
+
+<h2>Why this matters</h2>
+<p class="lede">Detecting an interesting point is only half the job. To match it across images, we need a <strong>description</strong> of the surrounding appearance that stays comparable when the camera moves, zooms, or lighting shifts moderately.</p>
+<p>SIFT (Scale-Invariant Feature Transform) is a landmark pipeline that combines detection and description in a way that is robust to scale and rotation and partially robust to illumination and viewpoint changes. Its design principles — scale-space, canonical orientation, and gradient-histogram descriptors — appear throughout classical and modern vision.</p>
+
+<h2>The one core idea</h2>
+<p>Find repeatable keypoints as <strong>scale-space extrema</strong> (DoG), refine their position/scale and assign a <strong>canonical orientation</strong>, then encode the local neighborhood as a <strong>normalized histogram of gradient orientations</strong>. This produces descriptors that can be compared by distance, with invariance engineered into each stage.</p>
+
+<div class="keybox">
+  <span class="sym">Detect in scale-space → normalize orientation → describe gradients → match by distance</span>
+  <p>Invariance is not magic: scale comes from σ, rotation from orientation alignment, and illumination robustness from gradients and normalization.</p>
+</div>
+
+<h2>How it actually works</h2>
+
+<h3>1) Scale-space extrema detection</h3>
+<p>Build a Gaussian scale-space <code>L(x,y,σ)=G(x,y,σ)*I</code> and compute DoG images <code>D(x,y,σ)=L(x,y,kσ)-L(x,y,σ)</code> across octaves/scales. Candidate keypoints are pixels that are local extrema (min or max) compared to their 8 neighbors in the same scale and 9 neighbors in each adjacent scale (26 comparisons) — extrema in both space and scale.</p>
+
+<h3>2) Keypoint localization and filtering</h3>
+<p>Candidate locations are refined to sub-pixel/sub-scale accuracy by fitting a local model (Taylor expansion of <code>D</code>) and rejecting unstable points: <strong>low-contrast</strong> candidates and candidates on <strong>edges</strong> (strong in one direction, weak in other — detected via principal curvature/Hessian ratio, similar in spirit to Harris) are discarded for better stability.</p>
+
+<h3>3) Orientation assignment</h3>
+<p>To achieve rotation invariance, compute gradient magnitudes and orientations in a neighborhood around the keypoint at its selected scale. Build an orientation histogram (e.g. 36 bins over 360°) weighted by magnitude and a Gaussian window. The dominant peak becomes the keypoint’s <strong>canonical orientation</strong>; strong secondary peaks may create additional keypoints. Subsequent description is done relative to this orientation.</p>
+
+<h3>4) Descriptor construction</h3>
+<p>Take a region around the keypoint (e.g. 16×16 at the keypoint scale), rotate coordinates to the canonical orientation, and compute gradients. Divide into a grid of cells (commonly 4×4). In each cell accumulate an orientation histogram (commonly 8 bins) weighted by gradient magnitude and a Gaussian falloff from the keypoint center. Concatenate all histograms → <code>4×4×8 = 128</code> values.</p>
+<p><strong>Normalization:</strong> normalize the vector to unit length to reduce linear illumination changes; clamp large values (to reduce influence of non-linear illumination/specularities) and renormalize. The result is the SIFT descriptor.</p>
+
+<figure class="fig">
+  <svg viewBox="0 0 720 190" role="img" aria-labelledby="sift-t sift-d">
+    <title id="sift-t">SIFT descriptor intuition: oriented gradients pooled into spatial bins</title>
+    <desc id="sift-d">A 16 by 16 patch split into 4 by 4 cells, each with a small orientation histogram, producing a 128-D vector.</desc>
+    <g transform="translate(40,20)" font-size="12" fill="currentColor">
+      <rect x="0" y="0" width="128" height="128" fill="none" stroke="currentColor" stroke-opacity=".4"/>
+      <g stroke="currentColor" stroke-opacity=".2">
+        <line x1="32" y1="0" x2="32" y2="128"/><line x1="64" y1="0" x2="64" y2="128"/><line x1="96" y1="0" x2="96" y2="128"/>
+        <line x1="0" y1="32" x2="128" y2="32"/><line x1="0" y1="64" x2="128" y2="64"/><line x1="0" y1="96" x2="128" y2="96"/>
+      </g>
+      <g stroke="var(--accent,#a3231f)" stroke-width="2">
+        <line x1="8" y1="24" x2="24" y2="8"/><line x1="40" y1="24" x2="56" y2="10"/><line x1="72" y1="22" x2="88" y2="10"/><line x1="104" y1="20" x2="120" y2="10"/>
+        <line x1="10" y1="56" x2="22" y2="40"/><line x1="42" y1="54" x2="54" y2="42"/><line x1="74" y1="54" x2="86" y2="42"/><line x1="106" y1="54" x2="118" y2="42"/>
+      </g>
+      <text x="64" y="150" text-anchor="middle">16×16 patch, rotated to keypoint orientation</text>
+      <text x="290" y="70" font-size="20">→</text>
+      <g transform="translate(330,10)">
+        <rect x="0" y="0" width="150" height="110" fill="var(--code-bg,#f4f2ee)" stroke="currentColor" stroke-opacity=".3"/>
+        <text x="75" y="22" text-anchor="middle">4×4 cells × 8 bins</text>
+        <text x="75" y="50" text-anchor="middle" font-family="ui-monospace,monospace">[h1 ... h128]</text>
+        <text x="75" y="75" text-anchor="middle">normalize → clamp → normalize</text>
+        <text x="75" y="98" text-anchor="middle">128-D descriptor</text>
+      </g>
+      <text x="360" y="160" text-anchor="middle">Spatial pooling gives tolerance to small localization/shape error.</text>
+    </g>
+  </svg>
+  <figcaption><strong>Descriptor logic.</strong> Gradients capture local structure; histograms and normalization provide robustness.</figcaption>
+</figure>
+
+<h3>5) Invariances and matching basics</h3>
+<p><strong>Invariances (by design, approximate):</strong> scale (detect at characteristic σ, describe in scale-normalized neighborhood), rotation (canonical orientation), illumination (gradients + normalization reduce sensitivity to additive/multiplicative changes). <strong>Not fully invariant to:</strong> large affine/projective viewpoint change, severe non-rigid deformation, occlusion, or extreme lighting/nonlinear effects — but often robust enough for matching with geometric verification.</p>
+<p><strong>Matching:</strong> compare descriptors (e.g. Euclidean distance in 128-D). Nearest-neighbor alone is ambiguous in repetitive textures; Lowe’s <strong>ratio test</strong> keeps a match if <code>d1/d2 &lt; τ</code> (e.g. 0.7–0.8) where <code>d1,d2</code> are distances to best and second-best matches — a distinctive match is much closer than the runner-up. Final reliability typically comes from geometric consistency (e.g. RANSAC, Lessons 5 &amp; 7).</p>
+
+<h2>Worked examples</h2>
+
+<h3>Example 1 — Why canonical orientation helps</h3>
+<p>The same corner appears rotated by 30° in a second image. Without alignment, gradient-orientation bins would shift and descriptor distance would be large. By rotating each patch to its dominant gradient orientation before binning, both descriptors are expressed in a common local frame, making distance small despite global image rotation.</p>
+
+<h3>Example 2 — Ratio test intuition</h3>
+<p>Descriptor A has nearest neighbor distances <code>d1=0.25</code> (correct-looking) and <code>d2=0.26</code> (almost as good) in a repetitive pattern: ratio <code>0.96</code> → ambiguous, reject. Descriptor B has <code>d1=0.22</code>, <code>d2=0.55</code>: ratio <code>0.40</code> → distinctive, accept. The ratio measures confidence, not just closeness.</p>
+
+<h3>Example 3 — Normalization and illumination</h3>
+<p>If lighting scales intensities by 1.5 and adds a small offset, raw intensities change a lot, but gradient directions are mostly preserved and magnitudes scale proportionally; L2 normalization of the descriptor removes much of that global scaling effect, keeping descriptors comparable.</p>
+
+<h2>The trap</h2>
+<div class="callout">
+  <span class="label">Common pitfalls</span>
+  <p><strong>“SIFT is invariant to everything.”</strong> It is designed for scale/rotation and moderate photometric change, not large out-of-plane viewpoint, heavy blur, or occlusion. Expect failures outside its assumptions.</p>
+  <p><strong>Descriptor distance ≠ correct match:</strong> nearest neighbors can be wrong in repetitive or textureless regions. Use the ratio test and, for geometry, RANSAC-based verification.</p>
+  <p><strong>Keypoint count isn’t quality:</strong> many unstable/low-contrast points (if not filtered) or dense but non-distinctive points can hurt matching; stability and distinctiveness matter.</p>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>What problem does assigning a canonical orientation to each SIFT keypoint solve?
+    <details><summary>Answer</summary><p>It provides rotation invariance by aligning the descriptor’s local coordinate frame to the dominant gradient direction before computing orientation histograms.</p></details>
+  </li>
+  <li>Why does SIFT use histograms of gradient orientations in spatial cells rather than raw pixel patches?
+    <details><summary>Answer</summary><p>Histograms pooled over cells capture local structure while tolerating small positional/shape changes, and gradient-based, normalized representations are more robust to illumination variations than raw intensities.</p></details>
+  </li>
+  <li>What does Lowe’s ratio test check, and why is it useful?
+    <details><summary>Answer</summary><p>It compares the best match distance to the second-best; a low ratio indicates a distinctive, unambiguous match, filtering out matches that are only marginally better than alternatives (common in repetitive patterns).</p></details>
+  </li>
+</ol>
+
+<h2>Labs &amp; next steps</h2>
+<ul>
+  <li><a href="../labs/lab06-sift-matching.html">L4a — SIFT descriptor &amp; matching intuition</a></li>
+</ul>
+<p>Even good matches contain outliers — next we fit models robustly with Hough and RANSAC.</p>
+
+<div class="next"><p><strong>Checkpoint 3 (part 2):</strong> SIFT finds scale-space keypoints, normalizes orientation, and builds normalized gradient-histogram descriptors for robust matching.</p></div>
+
+<div class="labnav"><a href="003-corner-and-blob-detection.html">← Lesson 03</a><a href="005-model-fitting-hough-ransac.html">Lesson 05 · Hough &amp; RANSAC →</a></div>
+</main>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

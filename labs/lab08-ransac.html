@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L5b — RANSAC line fitting</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+</head>
+<body data-page="lab" data-lesson="L5b">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lab L5b · 4 pts</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead"><p class="kicker">Unit 3 · Companion lab</p><h1>RANSAC line fitting</h1><p class="objective">You can run hypothesize-and-test iterations, count inliers, and see why consensus beats fitting all points.</p></header>
+
+<h2>Interactive demo</h2>
+<p>Data contains inliers near a line and outliers. Click <strong>Iterate</strong> to sample 2 points, fit a line, and count inliers within threshold τ. The best-so-far model is highlighted.</p>
+<div class="fig">
+  <div class="fig-controls">
+    <label>Outliers <input id="outN" type="range" min="0" max="20" step="1" value="8"></label>
+    <label>Threshold τ <input id="tau" type="range" min="3" max="20" step="1" value="8"></label>
+    <button id="iter" type="button">Iterate</button>
+    <button id="run" type="button">Run 30</button>
+    <button id="reset" type="button">Reset</button>
+  </div>
+  <canvas id="cv" width="520" height="260" style="width:100%;max-width:520px;height:auto;border:1px solid var(--rule);background:var(--card)"></canvas>
+  <output id="info" style="display:block;margin-top:.5rem"></output>
+  <figcaption><strong>Consensus wins.</strong> A sample with outliers yields few inliers; an all-inlier sample yields a model supported by most inliers. Best model can be refit on its consensus set.</figcaption>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>In RANSAC, what makes a data point an “inlier” for a hypothesized model?
+    <details><summary>Answer</summary><p>Its error (e.g. distance/residual) to that model is below a chosen threshold τ, meaning it is consistent with the hypothesis within tolerance.</p></details>
+  </li>
+  <li>Why do we use a minimal sample (e.g. 2 points for a line) instead of many points to form each hypothesis?
+    <details><summary>Answer</summary><p>A minimal sample maximizes the chance that it contains no outliers; using more points increases the likelihood of including an outlier and corrupting the hypothesis.</p></details>
+  </li>
+</ol>
+
+<div class="labnav"><a href="lab07-hough.html">← Lab L5a</a><a href="../lessons/006-image-blending.html">Lesson 06 · Image Blending →</a></div>
+</main>
+<script>
+(function(){
+  var cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  var pts=[], best=null, it=0;
+  function rand(){return Math.random();}
+  function gen(){
+    pts=[]; var outN=+document.getElementById('outN').value;
+    for(var i=0;i<22;i++){ var x=30+i*22; var y=0.35*x+50+(rand()*2-1)*6; pts.push({x:x,y:y}); }
+    for(var i=0;i<outN;i++) pts.push({x:30+rand()*460,y:20+rand()*220});
+    best=null; it=0; draw();
+  }
+  function fit(p1,p2){ var a=p2.y-p1.y, b=p1.x-p2.x, c=p2.x*p1.y-p1.x*p2.y; var n=Math.hypot(a,b)||1; return {a:a/n,b:b/n,c:c/n,p1:p1,p2:p2}; }
+  function dist(m,p){ return Math.abs(m.a*p.x+m.b*p.y+m.c); }
+  function iterate(){
+    var tau=+document.getElementById('tau').value;
+    var i=(Math.random()*pts.length)|0, j=(Math.random()*pts.length)|0; if(i===j) j=(j+1)%pts.length;
+    var m=fit(pts[i],pts[j]); var inl=[]; pts.forEach(function(p){ if(dist(m,p)<tau) inl.push(p); });
+    it++; if(!best || inl.length>best.inl.length) best={m:m,inl:inl,iter:it}; draw(m,inl);
+  }
+  function draw(cur,curInl){
+    var tau=+document.getElementById('tau').value;
+    ctx.clearRect(0,0,520,260);
+    function line(m,color,w){ ctx.strokeStyle=color; ctx.lineWidth=w||1; ctx.beginPath(); for(var x=0;x<520;x+=4){ var y=-(m.a*x+m.c)/(m.b||1e-6); var py=260-y; if(x===0) ctx.moveTo(x,py); else ctx.lineTo(x,py);} ctx.stroke(); }
+    if(best) line(best.m,'rgba(31,95,122,0.35)',6);
+    if(cur) line(cur,'rgba(163,35,31,0.5)',1.5);
+    pts.forEach(function(p){ var isBest=best && best.inl.indexOf(p)>=0; var isCur=curInl && curInl.indexOf(p)>=0; ctx.fillStyle=isBest?'#1f5f7a':(isCur?'#a3231f':'#999'); ctx.beginPath(); ctx.arc(p.x,260-p.y,3.2,0,Math.PI*2); ctx.fill(); });
+    var txt='Iterations: '+it+'  τ='+tau; if(best) txt+='  best inliers: '+best.inl.length+'/'+pts.length+' (iter '+best.iter+')'; if(curInl) txt+='  current: '+curInl.length; 
+    document.getElementById('info').textContent=txt;
+  }
+  document.getElementById('iter').addEventListener('click', iterate);
+  document.getElementById('run').addEventListener('click', function(){ for(var k=0;k<30;k++) iterate(); });
+  document.getElementById('reset').addEventListener('click', gen);
+  ['outN','tau'].forEach(function(id){document.getElementById(id).addEventListener('input', gen);});
+  gen();
+})();
+</script>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

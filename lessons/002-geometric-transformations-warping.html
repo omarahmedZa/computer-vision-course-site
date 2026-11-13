@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>02 — Geometric Transformations &amp; Image Warping</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+<meta name="description" content="2D transforms, homogeneous matrices, forward vs inverse warping, interpolation, and restoring geometrically deformed images.">
+</head>
+<body data-lesson="002">
+<main>
+
+<nav class="topline">
+  <a href="../index.html">← Course map</a>
+  <span class="pill">Lesson 02 / 08</span>
+  <span class="grow"></span>
+  <button type="button" data-theme-toggle>◐ auto</button>
+</nav>
+
+<header class="masthead">
+  <p class="kicker">Unit 2 · Geometry and warping · Lesson 2 of 8</p>
+  <h1>Geometric Transformations &amp; Image Warping</h1>
+  <p class="objective">You can model 2D geometric deformations with transformation matrices and warp or restore images using forward vs inverse mapping with appropriate interpolation.</p>
+</header>
+
+<h2>Why this matters</h2>
+<p class="lede">Cameras don’t see the world in a canonical pose: objects rotate, scale, skew, and project differently with viewpoint. Aligning scans, stitching panoramas, rectifying documents, augmenting data, and registering images all rely on moving pixels to new locations predictably.</p>
+<p>Geometric vision asks two linked questions: <em>what transformation maps coordinates?</em> and <em>how do we resample image intensities on a discrete grid?</em> Getting either wrong produces holes, blur, or misalignment.</p>
+
+<div class="numstrip" role="group" aria-label="Key numbers">
+  <div><b>3×3</b><span>homogeneous matrix for 2D affine/projective maps</span></div>
+  <div><b>4</b><span>point correspondences to estimate a homography (general case)</span></div>
+  <div><b>(x,y,1)</b><span>homogeneous point enabling translation as matrix multiply</span></div>
+</div>
+
+<h2>The one core idea</h2>
+<p>Represent 2D points in <strong>homogeneous coordinates</strong> so that translation, rotation, scale, shear, affine, and projective transforms become matrix multiplications. To produce an output image, prefer <strong>inverse warping</strong>: for each output pixel, find its source location and sample there with <strong>interpolation</strong>.</p>
+
+<div class="keybox">
+  <span class="sym">p' ~ H p, &nbsp; p = [x, y, 1]^T</span>
+  <p>Warping an image = transforming coordinates + resampling intensities. Inverse mapping avoids holes; interpolation handles non-integer source positions.</p>
+</div>
+
+<h2>How it actually works</h2>
+
+<h3>1) 2D geometric transformations</h3>
+<p>Let a point be <code>p=(x,y)</code>. Common transforms:</p>
+<table>
+  <tr><th>Transform</th><th>Parameters</th><th>Preserves</th><th>Notes</th></tr>
+  <tr><td>Translation</td><td><code>t_x,t_y</code></td><td>everything (rigid shift)</td><td><code>x'=x+t_x, y'=y+t_y</code></td></tr>
+  <tr><td>Rotation</td><td>angle <code>θ</code></td><td>lengths, angles (rigid)</td><td>about origin: <code>x'=x cosθ - y sinθ</code>, <code>y'=x sinθ + y cosθ</code></td></tr>
+  <tr><td>Scale</td><td><code>s_x,s_y</code></td><td>ratios if uniform</td><td><code>x'=s_x x</code>, <code>y'=s_y y</code></td></tr>
+  <tr><td>Shear</td><td><code>k_x,k_y</code></td><td>parallelism (not angles/lengths)</td><td>e.g. <code>x'=x+k_x y</code></td></tr>
+  <tr><td>Affine</td><td>6 (2×3)</td><td>parallel lines, ratios on lines</td><td>linear + translation; includes all above</td></tr>
+  <tr><td>Projective / Homography</td><td>8 dof (3×3 up to scale)</td><td>straight lines</td><td>models plane-to-plane perspective mapping</td></tr>
+</table>
+
+<h3>2) Homogeneous coordinates and matrices</h3>
+<p>Write <code>p=[x,y,1]^T</code>. A 2D affine transform is:</p>
+<span class="formula">[x'; y'; 1] = [[a,b,t_x],[c,d,t_y],[0,0,1]] · [x; y; 1]</span>
+<p>Translation becomes multiplication (crucial for composition). A <strong>homography</strong> uses a general 3×3 <code>H</code> with <code>h_{31},h_{32}</code> possibly nonzero and is defined up to scale:</p>
+<span class="formula">x' = (h11 x + h12 y + h13)/(h31 x + h32 y + h33), &nbsp; y' = (h21 x + h22 y + h23)/(h31 x + h32 y + h33)</span>
+<p><strong>Composition:</strong> apply <code>A</code> then <code>B</code> as <code>p'' = B (A p) = (B A) p</code>. Order matters (matrix multiplication is not commutative).</p>
+
+<figure class="fig">
+  <svg viewBox="0 0 720 200" role="img" aria-labelledby="tr-t tr-d">
+    <title id="tr-t">Transform hierarchy and a deformed grid</title>
+    <desc id="tr-d">A unit square grid transformed by rotation+scale, shear, and projective warp to show preserved properties.</desc>
+    <g stroke="currentColor" fill="none" stroke-opacity=".35">
+      <g transform="translate(40,30)">
+        <text x="50" y="-8" font-size="12" fill="currentColor" stroke="none" text-anchor="middle">original</text>
+        <rect x="0" y="0" width="100" height="100"/>
+        <line x1="33" y1="0" x2="33" y2="100"/><line x1="66" y1="0" x2="66" y2="100"/>
+        <line x1="0" y1="33" x2="100" y2="33"/><line x1="0" y1="66" x2="100" y2="66"/>
+      </g>
+      <g transform="translate(220,30)">
+        <text x="50" y="-8" font-size="12" fill="currentColor" stroke="none" text-anchor="middle">affine (shear)</text>
+        <polygon points="15,0 115,0 85,100 -15,100"/>
+        <line x1="36" y1="0" x2="6" y2="100"/><line x1="68" y1="0" x2="38" y2="100"/>
+        <line x1="5" y1="33" x2="105" y2="33"/><line x1="-5" y1="66" x2="95" y2="66"/>
+      </g>
+      <g transform="translate(420,20)">
+        <text x="70" y="-0" font-size="12" fill="currentColor" stroke="none" text-anchor="middle">projective</text>
+        <polygon points="20,10 140,0 120,110 0,100"/>
+        <line x1="55" y1="6" x2="35" y2="103"/><line x1="95" y1="3" x2="75" y2="106"/>
+        <line x1="14" y1="40" x2="133" y2="34"/><line x1="7" y1="70" x2="126" y2="72"/>
+      </g>
+    </g>
+    <text x="360" y="170" text-anchor="middle" font-size="13" fill="currentColor">Affine keeps parallel lines; projective keeps straight lines but can break parallelism (perspective).</text>
+  </svg>
+  <figcaption><strong>Geometry of transforms.</strong> Choose the model that matches the physical deformation (e.g. planar perspective → homography).</figcaption>
+</figure>
+
+<h3>3) Forward vs inverse warping</h3>
+<p>To create output image <code>I'</code> from input <code>I</code> using mapping <code>T</code>:</p>
+<ul>
+  <li><strong>Forward warping:</strong> for each source pixel <code>p</code>, compute <code>p'=T(p)</code> and copy intensity to <code>I'(p')</code>. Problem: <code>p'</code> may land between pixels (needs splatting) or multiple sources may map to same destination, and some destinations may receive nothing → <strong>holes</strong>.</li>
+  <li><strong>Inverse warping:</strong> for each destination pixel <code>p'</code>, compute source location <code>p = T^{-1}(p')</code> and sample <code>I(p)</code>. Every destination pixel is visited exactly once (no holes), but requires <strong>interpolation</strong> because <code>p</code> is generally non-integer.</li>
+</ul>
+<p><strong>Standard practice:</strong> inverse warping + interpolation.</p>
+
+<h3>4) Interpolation (resampling)</h3>
+<p>When sampling at non-integer coordinates:</p>
+<table>
+  <tr><th>Method</th><th>How</th><th>Trade-off</th></tr>
+  <tr><td>Nearest neighbor</td><td>pick closest pixel value</td><td>fast, preserves values, blocky/aliasing</td></tr>
+  <tr><td>Bilinear</td><td>linear blend in x and y using 4 neighbors</td><td>smoother, slight blur, common default</td></tr>
+  <tr><td>Bicubic (concept)</td><td>fit using 16 neighbors</td><td>sharper/smoother than bilinear, more compute/ringing risk</td></tr>
+</table>
+<p><strong>Bilinear intuition:</strong> if <code>(x,y)</code> lies between integer grid points, interpolate horizontally along top and bottom, then vertically between those results (or vice versa) — weights proportional to distance.</p>
+
+<h3>5) Restoring geometrically deformed images</h3>
+<p>If an observed image is a warped version of an original (e.g. rotated/scaled/skewed scan), restoration means estimating the deformation and applying the appropriate inverse transform:</p>
+<ol>
+  <li>Choose a motion model (translation/affine/homography) matching the distortion.</li>
+  <li>Estimate parameters (from known calibration, correspondences, or other cues).</li>
+  <li>Inverse-warp the deformed image onto a desired output grid with interpolation.</li>
+</ol>
+<p>When correspondences are noisy or contain outliers, robust estimation (Lesson 5, used in Lesson 7) is essential.</p>
+
+<h2>Worked examples</h2>
+
+<h3>Example 1 — Rotate a point (homogeneous matrix)</h3>
+<p>Rotate <code>p=(2,1)</code> by <code>θ=90°</code> counterclockwise about origin: <code>cos90°=0, sin90°=1</code>.</p>
+<span class="formula">[x'; y'] = [[0,-1],[1,0]]·[2;1] = [-1; 2]</span>
+<p>So <code>(2,1) → (-1,2)</code>. With homogeneous coordinates, include translation in the same 3×3 multiply.</p>
+
+<h3>Example 2 — Composition order matters</h3>
+<p>Translate by <code>(3,0)</code> then rotate 90° vs rotate then translate:</p>
+<ul>
+  <li><code>p=(1,0)</code>: translate → <code>(4,0)</code>, rotate → <code>(0,4)</code>.</li>
+  <li><code>p=(1,0)</code>: rotate → <code>(0,1)</code>, translate → <code>(3,1)</code>.</li>
+</ul>
+<p>Different results. The correct matrix is <code>R·T</code> for “translate then rotate” (applied right-to-left to the point).</p>
+
+<h3>Example 3 — Bilinear interpolation</h3>
+<p>Sample at <code>(x,y)=(10.2, 20.7)</code> with values <code>I(10,20)=100, I(11,20)=120, I(10,21)=80, I(11,21)=110</code>. Let <code>dx=0.2, dy=0.7</code>.</p>
+<table>
+  <tr><th>Step</th><th>Computation</th><th class="num">Value</th></tr>
+  <tr><td>Top row</td><td class="num">100*(1-0.2)+120*0.2</td><td class="num">104</td></tr>
+  <tr><td>Bottom row</td><td class="num">80*0.8+110*0.2</td><td class="num">86</td></tr>
+  <tr><td>Vertical</td><td class="num">104*(1-0.7)+86*0.7</td><td class="num"><strong>91.4</strong></td></tr>
+</table>
+<p>Inverse warping computes this for every output pixel to fill the warped image smoothly.</p>
+
+<h2>The trap</h2>
+<div class="callout">
+  <span class="label">Common pitfalls</span>
+  <p><strong>Forward warping for image generation:</strong> sending source pixels to rounded destinations leaves gaps/overwrites — use inverse mapping for dense output images.</p>
+  <p><strong>Coordinate conventions:</strong> image origin (top-left vs bottom-left), axis order <code>(x,y)</code> vs <code>(row,col)</code>, and angle direction (degrees/radians, clockwise/counterclockwise) must be consistent.</p>
+  <p><strong>“Bilinear is always best.”</strong> Nearest preserves categorical labels/exact values; bilinear/bicubic can blur edges or create non-original values. Choose based on the signal.</p>
+  <p><strong>Ignoring inverse existence/scope:</strong> projective mappings can send points to infinity; always work within valid image bounds and handle invalid source samples.</p>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>Why do we use homogeneous coordinates for 2D transformations?
+    <details><summary>Answer</summary>
+      <p>They let translation (and affine/projective transforms) be expressed as matrix multiplication, enabling easy composition and inversion using linear algebra.</p>
+    </details>
+  </li>
+  <li>In inverse warping, for each output pixel you compute <code>p = T^{-1}(p')</code>. Why is interpolation usually required?
+    <details><summary>Answer</summary>
+      <p>Because <code>T^{-1}(p')</code> generally falls at non-integer source coordinates; interpolation estimates intensity from nearby grid samples.</p>
+    </details>
+  </li>
+  <li>If you apply a shear then a rotation, how should the combined matrix be formed relative to a point <code>p</code>?
+    <details><summary>Answer</summary>
+      <p>As <code>R·S·p</code> (rotation matrix times shear matrix, applied right-to-left), so the shear acts first on <code>p</code>, then the rotation.</p>
+    </details>
+  </li>
+  <li>Name one advantage of nearest-neighbor interpolation over bilinear.
+    <details><summary>Answer</summary>
+      <p>It preserves original sample values (useful for labels/masks), is fast, and avoids introducing blurred intermediate intensities.</p>
+    </details>
+  </li>
+</ol>
+
+<h2>Labs &amp; next steps</h2>
+<ul>
+  <li><a href="../labs/lab03-transforms.html">L2a — Transform matrices &amp; composition</a></li>
+  <li><a href="../labs/lab04-warping-interpolation.html">L2b — Forward vs inverse warping &amp; interpolation</a></li>
+</ul>
+
+<div class="next">
+  <p><strong>Checkpoint 2 recap:</strong> homogeneous matrices unify 2D transforms; inverse warping plus interpolation is the practical way to resample images and restore geometric deformations.</p>
+</div>
+
+<div class="labnav">
+  <a href="001-introduction-to-computer-vision.html">← Lesson 01</a>
+  <a href="003-corner-and-blob-detection.html">Lesson 03 · Corner &amp; Blob Detection →</a>
+</div>
+
+</main>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>07 — Image Registration</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+<meta name="description" content="Aligning images via feature detection/matching, transform estimation (affine/homography), warping/resampling, similarity measures, and end-to-end pipeline.">
+</head>
+<body data-lesson="007">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lesson 07 / 08</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead">
+  <p class="kicker">Unit 4 · Composition, alignment, and learning · Lesson 7 of 8</p>
+  <h1>Image Registration</h1>
+  <p class="objective">You can explain and execute the end-to-end registration pipeline: detect/match features, estimate transforms robustly, warp/resample, and evaluate alignment.</p>
+</header>
+
+<h2>Why this matters</h2>
+<p class="lede">Comparing or combining images only makes sense when corresponding scene points line up. Medical scans taken at different times, satellite images from different passes, panorama frames, and document rectification all depend on <strong>image registration</strong>.</p>
+<p>Registration brings together nearly everything from earlier lessons: local features and descriptors to find correspondences, robust model fitting to estimate geometry despite outliers, and geometric warping/interpolation to resample into a common frame.</p>
+
+<h2>The one core idea</h2>
+<p>Registration estimates a spatial transformation <code>T</code> that maps points in a source/moving image to corresponding points in a target/fixed image, then <strong>warps</strong> the moving image by <code>T^{-1}</code> (inverse warping) so structures align. Quality depends on the motion model, correspondence quality, robust estimation, and an appropriate similarity measure.</p>
+
+<div class="keybox">
+  <span class="sym">detect → match → estimate T (robust) → warp/resample → evaluate</span>
+  <p>Feature-based registration aligns via correspondences; intensity/similarity-based methods optimize alignment directly — many systems combine both ideas.</p>
+</div>
+
+<h2>How it actually works</h2>
+
+<h3>1) End-to-end feature-based pipeline</h3>
+<ol>
+  <li><strong>Detect features</strong> in both images (corners/blobs/SIFT keypoints) — repeatable, well-localized points.</li>
+  <li><strong>Describe and match</strong> features to propose correspondences (descriptor distance, ratio test). Expect outliers.</li>
+  <li><strong>Choose a transform model</strong> matching the scene/camera motion (translation, similarity, affine, homography/projective, etc.).</li>
+  <li><strong>Estimate transform robustly</strong> (e.g. RANSAC) from correspondences: sample minimal sets, compute candidate <code>T</code>, count inliers, keep best, refit on inliers.</li>
+  <li><strong>Warp/resample</strong> the moving image into the target frame using inverse warping + interpolation (Lesson 2).</li>
+  <li><strong>Evaluate</strong> alignment (residuals on inliers, overlay/error maps, or similarity measures) and iterate/refine if needed.</li>
+</ol>
+
+<h3>2) Transform estimation (affine/homography)</h3>
+<p>Correspondences <code>(x_i,y_i) ↔ (x_i',y_i')</code> constrain <code>T</code>. An <strong>affine</strong> transform (6 dof) preserves parallel lines and can be estimated from ≥3 non-collinear point pairs (linear system). A <strong>homography</strong> (8 dof, plane-to-plane/projective) preserves straight lines and requires ≥4 point pairs; it is typically solved via the Direct Linear Transform (DLT) in homogeneous coordinates with normalization and, in practice, RANSAC for outlier rejection.</p>
+<p>Model choice matters: using homography for non-planar scenes or significant parallax is a mismatch; using affine when perspective effects are strong is insufficient.</p>
+
+<h3>3) Warping, resampling, and similarity measures</h3>
+<p>Once <code>T</code> is known, produce the registered image by inverse mapping each target pixel to a source location and interpolating. To assess alignment (feature-based residuals or intensity-based registration), common similarity/distance measures include:</p>
+<table>
+  <tr><th>Measure</th><th>Idea</th><th>When useful</th></tr>
+  <tr><td>SSD / SAD</td><td>sum/mean of squared/absolute differences</td><td>similar intensity/lighting; simple, sensitive to photometric change</td></tr>
+  <tr><td>NCC</td><td>normalized cross-correlation</td><td>more robust to linear brightness/contrast changes</td></tr>
+  <tr><td>Mutual Information (MI)</td><td>statistical dependence of intensities</td><td>multi-modal/different sensors where intensities differ but are related</td></tr>
+</table>
+<p>Feature-based methods minimize geometric reprojection error on correspondences; direct/intensity methods optimize a similarity measure over transform parameters.</p>
+
+<h3>4) Failure modes</h3>
+<p>Registration fails when: correspondences are too few, poorly distributed, or wrong (mismatches/outliers overwhelm RANSAC); the chosen motion model cannot explain the true deformation; the scene is non-planar with parallax (single global homography invalid); or there is too little texture/overlap to match. Photometric differences can also mislead intensity-based measures if not handled.</p>
+
+<h2>Worked examples</h2>
+
+<h3>Example 1 — Minimal correspondences and RANSAC</h3>
+<p>You detect 120 tentative matches for estimating a homography (needs 4). 70 are correct, 50 are mismatches scattered. RANSAC repeatedly samples 4 matches: most samples include a mismatch → transform explains few points; samples of 4 true correspondences yield a homography consistent with ~70 inliers. The inlier set then refits a more accurate <code>H</code> used to warp the image.</p>
+
+<h3>Example 2 — Choosing the motion model</h3>
+<p>A flat document photographed from an angle undergoes perspective distortion → homography is appropriate. A satellite image pair over a small area with mostly translation and small rotation may be well modeled by similarity/affine. Using too simple a model leaves systematic residuals; too complex a model (with few/noisy points) can overfit or be unstable.</p>
+
+<h3>Example 3 — Evaluating alignment</h3>
+<p>After warping, overlay the registered image on the target (or compute a difference image). Good registration shows edges/structures coincident with low residuals; misregistration appears as doubled edges or high local differences. On inlier correspondences, mean reprojection error (distance between mapped source point and its target match) quantifies geometric fit.</p>
+
+<h2>The trap</h2>
+<div class="callout">
+  <span class="label">Common pitfalls</span>
+  <p><strong>Wrong motion model:</strong> a single homography assumes a planar scene or pure rotation about the camera center; parallax in 3D scenes breaks this assumption.</p>
+  <p><strong>Trusting raw matches:</strong> descriptor matches always include outliers — robust estimation (RANSAC) and geometric consistency are essential.</p>
+  <p><strong>Good score, bad alignment:</strong> similarity measures can be misled by uniform regions or photometric differences; inspect visual overlays and spatial distribution of inliers/residuals.</p>
+  <p><strong>Interpolation/boundary neglect:</strong> warping outside source bounds or with poor interpolation introduces artifacts; define valid masks/regions.</p>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>Why is RANSAC commonly used when estimating a homography from feature matches?
+    <details><summary>Answer</summary><p>Because tentative matches contain outliers (incorrect correspondences); RANSAC finds the transform with the largest consensus (inlier set), making estimation robust to those outliers.</p></details>
+  </li>
+  <li>When is a homography an appropriate motion model for registration?
+    <details><summary>Answer</summary><p>When the scene is (approximately) planar or the camera motion is a pure rotation about its center, so that points in the two images are related by a projective (plane-to-plane) transformation.</p></details>
+  </li>
+  <li>Name two ways to evaluate registration quality.
+    <details><summary>Answer</summary><p>Examples: mean reprojection/residual error on inlier correspondences; visual overlay/difference inspection; intensity similarity measures such as SSD/SAD, NCC, or mutual information over the overlap.</p></details>
+  </li>
+</ol>
+
+<h2>Labs &amp; next steps</h2>
+<ul>
+  <li><a href="../labs/lab10-registration.html">L7a — End-to-end registration pipeline</a></li>
+</ul>
+
+<div class="next"><p><strong>Recap:</strong> registration chains detection, matching, robust transform estimation, and warping — uniting geometric and feature methods into an alignment pipeline.</p></div>
+
+<div class="labnav"><a href="006-image-blending.html">← Lesson 06</a><a href="008-deep-learning-computer-vision.html">Lesson 08 · Deep Learning for CV →</a></div>
+</main>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

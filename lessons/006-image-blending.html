@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>06 — Image Blending</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+<meta name="description" content="Alpha blending, feathering, Laplacian/pyramid blending concepts, seams and exposure differences for smooth image composition.">
+</head>
+<body data-lesson="006">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lesson 06 / 08</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead">
+  <p class="kicker">Unit 4 · Composition, alignment, and learning · Lesson 6 of 8</p>
+  <h1>Image Blending</h1>
+  <p class="objective">You can combine overlapping images smoothly using alpha/feathering and multi-scale (pyramid/Laplacian) blending while reasoning about seams and exposure differences.</p>
+</header>
+
+<h2>Why this matters</h2>
+<p class="lede">Stitching panoramas, compositing regions, merging exposures, or inserting objects all require placing pixels from different images into one result. Even with perfect alignment, a hard cut often reveals a seam because lighting, exposure, sensor response, or noise differ across images.</p>
+<p>Blending controls <em>how</em> intensities transition across boundaries: simple alpha blends are fast and useful, while multi-scale (pyramid) blending can hide seams by blending low frequencies broadly and high frequencies narrowly — preserving detail without obvious halos.</p>
+
+<h2>The one core idea</h2>
+<p>Blend images by a <strong>spatially varying weight/mask</strong>. <strong>Alpha/feathering</strong> mixes pixel values directly (good when images match well). <strong>Pyramid/Laplacian blending</strong> mixes different frequency bands at different scales so large-scale color/exposure differences transition smoothly while fine details remain sharp.</p>
+
+<div class="keybox">
+  <span class="sym">I = α·A + (1-α)·B</span>
+  <p>Blending is weighted interpolation. The mask’s shape and the scale at which you blend determine whether seams, ghosting, or blur appear.</p>
+</div>
+
+<h2>How it actually works</h2>
+
+<h3>1) Direct alpha blending and feathering</h3>
+<p>Given images <code>A,B</code> and mask/alpha <code>α(x,y)∈[0,1]</code>:</p>
+<span class="formula">I(x,y) = α(x,y)\,A(x,y) + (1-α(x,y))\,B(x,y)</span>
+<ul>
+  <li><strong>Hard mask:</strong> α is 0/1 with an abrupt boundary → can leave a visible seam if exposures/colors differ.</li>
+  <li><strong>Feathering:</strong> smooth/blur the mask so α transitions gradually across the boundary → reduces seams but can create a soft “ghost”/double-exposure look if content is misaligned.</li>
+</ul>
+<p>Feather width matters: too narrow = seam remains; too wide = blends unrelated structures.</p>
+
+<h3>2) Exposure differences and photometric seams</h3>
+<p>Even geometrically aligned images may differ in brightness, white balance, vignetting, or gain. Direct averaging in the overlap can show step changes at the seam. Simple fixes include matching global means/gains before blending; more advanced pipelines adjust photometry per band — motivating multi-scale approaches.</p>
+
+<h3>3) Gaussian and Laplacian pyramids (intuition)</h3>
+<p>A <strong>Gaussian pyramid</strong> is a stack of progressively blurred and downsampled images <code>G0, G1, ...</code> capturing structure at coarser scales. A <strong>Laplacian pyramid</strong> stores band-pass details: <code>L_i = G_i - upsample(G_{i+1})</code> (with <code>L_n = G_n</code> at the top). Summing expanded Laplacian levels reconstructs the original — i.e. image = low-frequency base + detail bands.</p>
+
+<h3>4) Multi-band / Laplacian pyramid blending</h3>
+<p>To blend <code>A,B</code> with mask <code>M</code>:</p>
+<ol>
+  <li>Build Laplacian pyramids <code>LA, LB</code> for the images and a Gaussian pyramid <code>GM</code> for the mask.</li>
+  <li>Blend each level: <code>L_i = GM_i · LA_i + (1-GM_i) · LB_i</code>.</li>
+  <li>Collapse/reconstruct the blended pyramid.</li>
+</ol>
+<p><strong>Why it works:</strong> at coarse levels the mask is effectively very smooth, so low-frequency exposure/color differences transition over a wide region; at fine levels the transition is narrow, preserving sharp edges/textures without a wide ghosting zone. This often removes seams far better than single-scale feathering.</p>
+
+<h3>5) Seams and alignment dependence</h3>
+<p>Blending assumes corresponding content is in the same place. If images are misaligned (parallax, motion, registration error), blending smears/ghosts structures. Choosing a good seam/compositing boundary or first registering images (Lesson 7) is often necessary; blending complements, not replaces, alignment.</p>
+
+<h2>Worked examples</h2>
+
+<h3>Example 1 — Alpha blend at a pixel</h3>
+<p>At one pixel, <code>A=200</code>, <code>B=100</code>. Hard edge: <code>α=1 → 200</code>, neighbor <code>α=0 → 100</code> (abrupt jump). Feathered: <code>α=0.75 → 175</code>, <code>α=0.5 → 150</code>, <code>α=0.25 → 125</code> — a smooth ramp that hides a step if structures align.</p>
+
+<h3>Example 2 — Why multi-scale helps exposure seams</h3>
+<p>Left image is consistently 30 intensity units brighter. A narrow feather still shows a quick brightness change; a wide feather washes out detail. Multi-scale blending transitions the “+30 brightness” component over a large area at coarse levels while keeping fine edges (which exist in both images) blended tightly, so the seam is less perceptible without excessive blur.</p>
+
+<h3>Example 3 — Misalignment causes ghosting</h3>
+<p>A thin edge appears at column 50 in A and column 53 in B. A 7-pixel feather averages them across the boundary, producing a faint double edge (ghost). No amount of photometric blending fixes geometric misalignment — the remedy is better registration or a seam that avoids the edge.</p>
+
+<h2>The trap</h2>
+<div class="callout">
+  <span class="label">Common pitfalls</span>
+  <p><strong>Blending ≠ alignment:</strong> feathering/pyramids reduce seam visibility but cannot correct parallax or registration error; misaligned content ghosts.</p>
+  <p><strong>Mask too hard or too soft:</strong> hard masks show exposure seams; overly soft masks create halos/blur or double images in detailed regions.</p>
+  <p><strong>Ignoring photometric differences:</strong> large exposure/white-balance mismatches may require pre-normalization in addition to blending.</p>
+  <p><strong>Assuming pyramid blending is free:</strong> it costs more compute/memory and must be implemented carefully at boundaries and scales, but it’s often the right tool for seamless composites.</p>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>What is the effect of feathering the alpha mask compared to a hard (binary) mask?
+    <details><summary>Answer</summary><p>Feathering creates a gradual transition that can hide abrupt seams from exposure/color differences, but if content is misaligned it can produce ghosting over the wider blend region.</p></details>
+  </li>
+  <li>In Laplacian pyramid blending, why do low-frequency components blend over a wider region than high-frequency details?
+    <details><summary>Answer</summary><p>The mask is represented in a Gaussian pyramid, so at coarse (low-frequency) levels the transition is effectively broader, while at fine (high-frequency) levels it remains narrower, preserving detail.</p></details>
+  </li>
+  <li>Can pyramid blending fix ghosting caused by parallax/misalignment? Why or why not?
+    <details><summary>Answer</summary><p>No. Blending combines values at corresponding pixel locations; if the same scene structure is in different positions, mixing them creates double/blurred structures. Geometric alignment (registration) or seam placement is needed.</p></details>
+  </li>
+</ol>
+
+<h2>Labs &amp; next steps</h2>
+<ul>
+  <li><a href="../labs/lab09-blending.html">L6a — Alpha, feathering &amp; pyramids</a></li>
+</ul>
+<p>Next: align images before (or as part of) compositing with image registration.</p>
+
+<div class="next"><p><strong>Recap:</strong> alpha/feathering blends intensities directly; multi-scale pyramid blending transitions bands at appropriate scales to hide seams when images are well aligned.</p></div>
+
+<div class="labnav"><a href="005-model-fitting-hough-ransac.html">← Lesson 05</a><a href="007-image-registration.html">Lesson 07 · Image Registration →</a></div>
+</main>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

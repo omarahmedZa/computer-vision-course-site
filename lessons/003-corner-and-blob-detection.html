@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>03 — Corner and Blob Detection</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+<meta name="description" content="Why features matter, image gradients and structure, Harris corner detector, and blob detection with LoG/DoG scale-space intuition.">
+</head>
+<body data-lesson="003">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lesson 03 / 08</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+
+<header class="masthead">
+  <p class="kicker">Unit 3 · Local features and robust fitting · Lesson 3 of 8</p>
+  <h1>Corner and Blob Detection</h1>
+  <p class="objective">You can explain why features matter and detect corners and blobs using image gradients, the Harris structure tensor, non-maximum suppression, and scale-space (LoG/DoG) responses.</p>
+</header>
+
+<h2>Why this matters</h2>
+<p class="lede">Raw pixels change drastically with viewpoint, illumination, and noise. To match, track, stitch, or register images, we need <em>repeatable local structures</em> — points we can find again in another image of the same scene.</p>
+<p>Good features are distinctive and localizable. Flat regions are ambiguous, edges are ambiguous along their length, but <strong>corners</strong> and <strong>blobs</strong> often provide stable, well-localized cues. Understanding how detectors work (and when they fail) is essential before moving to descriptors like SIFT and to registration pipelines.</p>
+
+<div class="numstrip" role="group" aria-label="Key numbers">
+  <div><b>∇I</b><span>image gradient: direction &amp; strength of intensity change</span></div>
+  <div><b>2×2</b><span>structure tensor summarizing local gradient variation</span></div>
+  <div><b>σ</b><span>scale: controls what “blob size” is emphasized</span></div>
+</div>
+
+<h2>The one core idea</h2>
+<p>Detect <strong>corners</strong> where intensity changes significantly in <em>two different directions</em> (captured by the eigenvalues/response of the local gradient structure tensor). Detect <strong>blobs</strong> as regions that stand out from surroundings at a particular <strong>scale</strong>, using scale-normalized Laplacian-of-Gaussian (LoG) or its efficient approximation Difference-of-Gaussians (DoG), followed by non-maximum suppression.</p>
+
+<div class="keybox">
+  <span class="sym">Corner: strong gradients in orthogonal directions · Blob: extremal response in space &amp; scale</span>
+  <p>Gradients measure local change; second-moment structure measures how that change is distributed; scale-space compares responses across blur levels to find characteristic sizes.</p>
+</div>
+
+<h2>How it actually works</h2>
+
+<h3>1) Why features matter</h3>
+<p>Local features provide anchor points for: <strong>correspondence/matching</strong> (same point in two views), <strong>tracking</strong> (motion over time), <strong>image registration/stitching</strong> (aligning images), and as inputs to higher-level recognition. A useful feature is (ideally) repeatable under small changes, distinctive, accurately localized, and efficient to compute.</p>
+
+<h3>2) Image gradients and local structure</h3>
+<p>The image gradient <code>∇I = (I_x, I_y)</code> (approximated by filters like Sobel/central differences) points in the direction of greatest intensity increase; its magnitude <code>|∇I|</code> measures edge strength.</p>
+<ul>
+  <li><strong>Flat region:</strong> small gradients in all directions.</li>
+  <li><strong>Edge:</strong> large gradient in one dominant direction, small orthogonal to it.</li>
+  <li><strong>Corner/junction:</strong> large gradients in multiple directions (neighborhood shifts noticeably in more than one direction).</li>
+</ul>
+
+<figure class="fig">
+  <svg viewBox="0 0 720 170" role="img" aria-labelledby="g-t g-d">
+    <title id="g-t">Flat, edge, and corner gradient patterns</title>
+    <desc id="g-d">Three patches: uniform, a vertical edge, and an L corner with arrows indicating gradient directions.</desc>
+    <g transform="translate(40,20)" font-size="12" fill="currentColor">
+      <rect x="0" y="0" width="110" height="110" fill="#bdbdbd" stroke="currentColor" stroke-opacity=".3"/>
+      <text x="55" y="130" text-anchor="middle">flat: ∇I ≈ 0</text>
+      <g transform="translate(170,0)">
+        <rect x="0" y="0" width="55" height="110" fill="#8c8c8c" stroke="currentColor" stroke-opacity=".3"/>
+        <rect x="55" y="0" width="55" height="110" fill="#d9d9d9" stroke="currentColor" stroke-opacity=".3"/>
+        <path d="M45 55 L75 55" stroke="var(--accent,#a3231f)" stroke-width="3" marker-end="url(#ah)"/>
+        <text x="55" y="130" text-anchor="middle">edge: one direction</text>
+      </g>
+      <g transform="translate(360,0)">
+        <rect x="0" y="0" width="110" height="110" fill="#d9d9d9" stroke="currentColor" stroke-opacity=".3"/>
+        <rect x="0" y="55" width="55" height="55" fill="#8c8c8c"/>
+        <path d="M45 70 L75 70" stroke="var(--accent,#a3231f)" stroke-width="2.5"/>
+        <path d="M40 45 L40 75" stroke="var(--accent,#a3231f)" stroke-width="2.5"/>
+        <text x="55" y="130" text-anchor="middle">corner: two directions</text>
+      </g>
+      <defs><marker id="ah" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--accent,#a3231f)"/></marker></defs>
+      <text x="300" y="155" text-anchor="middle">Aperture intuition: shifting a window changes appearance most at corners.</text>
+    </g>
+  </svg>
+  <figcaption><strong>Local structure.</strong> Corners are distinctive because motion/shift in any direction changes the patch.</figcaption>
+</figure>
+
+<h3>3) Harris corner detector</h3>
+<p>Harris measures how much a windowed patch changes when shifted by <code>(u,v)</code>. Using a first-order approximation, the change is summarized by the <strong>second-moment (structure) matrix</strong> computed over a window <code>W</code> (often Gaussian-weighted):</p>
+<span class="formula">M = \sum_{(x,y)\in W} w(x,y) \begin{bmatrix} I_x^2 & I_x I_y \\ I_x I_y & I_y^2 \end{bmatrix}</span>
+<p>The eigenvalues <code>λ1, λ2</code> of <code>M</code> describe gradient variation along principal directions:</p>
+<ul>
+  <li><strong>Flat:</strong> <code>λ1, λ2</code> small.</li>
+  <li><strong>Edge:</strong> one large, one small.</li>
+  <li><strong>Corner:</strong> both large.</li>
+</ul>
+<p>Harris avoids explicit eigen-decomposition with a response function:</p>
+<span class="formula">R = det(M) - k · (trace(M))^2 = λ1 λ2 - k(λ1+λ2)^2, &nbsp; k \in [0.04, 0.06]</span>
+<p><strong>Pipeline:</strong> compute gradients → form <code>M</code> per pixel (smoothed products) → compute <code>R</code> → threshold → apply <strong>non-maximum suppression (NMS)</strong> so nearby strong responses yield a single well-localized corner.</p>
+
+<h3>4) Blob detection: LoG, DoG, and scale-space intuition</h3>
+<p>A <strong>blob</strong> is a region darker/brighter than its surroundings at some scale (size). Because the “right” size is unknown, detectors search across <strong>scale-space</strong>.</p>
+<p><strong>Scale-space:</strong> smooth the image with Gaussians of increasing <code>σ</code>: <code>L(x,y,σ)=G(x,y,σ)*I(x,y)</code>. Larger <code>σ</code> removes fine detail and highlights larger structures.</p>
+<p><strong>Laplacian of Gaussian (LoG):</strong> the Laplacian <code>∇²</code> measures second derivative (center-surround contrast). The normalized LoG, <code>σ² ∇²L</code>, gives strong extrema at blob centers when the filter scale matches blob size.</p>
+<p><strong>Difference of Gaussians (DoG):</strong> <code>D(x,y,σ,k)=L(x,y,kσ)-L(x,y,σ)</code> approximates the scale-normalized LoG efficiently (used in SIFT). Blobs are detected as local extrema in <code>(x,y,σ)</code> (space and scale), followed by refinement and thresholding/NMS-like selection.</p>
+
+<h2>Worked examples</h2>
+
+<h3>Example 1 — Reading the structure tensor</h3>
+<p>Suppose in a window gradients are mostly horizontal: many <code>I_x</code> values large, <code>I_y</code> near zero. Then <code>\sum I_x^2</code> is large, <code>\sum I_y^2</code> and <code>\sum I_x I_y</code> small → <code>M ≈ diag(large, small)</code>, one large and one small eigenvalue: an <strong>edge</strong>. If gradients vary strongly in both axes (e.g. an L junction), both diagonal terms become large → <strong>corner</strong>.</p>
+
+<h3>Example 2 — Harris response intuition</h3>
+<p>For a corner, <code>λ1=5, λ2=4, k=0.05</code>: <code>R = 20 - 0.05*(81)=15.95</code> (strong positive). For an edge, <code>λ1=5, λ2=0.2</code>: <code>R = 1 - 0.05*(27.04)≈ -0.352</code> (not a corner). The <code>(trace)^2</code> term penalizes cases dominated by a single direction.</p>
+
+<h3>Example 3 — Why scale matters for blobs</h3>
+<p>A tiny dark dot responds strongly to a small-<code>σ</code> LoG/DoG but weakly once blur exceeds its size; a large dark disk responds weakly at small <code>σ</code> and peaks at larger <code>σ</code>. Searching over <code>σ</code> finds the characteristic scale, enabling scale-aware detection (and, in SIFT, scale-invariant description).</p>
+
+<h2>The trap</h2>
+<div class="callout">
+  <span class="label">Common pitfalls</span>
+  <p><strong>Edges are not corners:</strong> high gradient magnitude alone (an edge) is not enough — Harris looks for change in two directions. This is the aperture problem in feature form.</p>
+  <p><strong>Threshold and window sensitivity:</strong> Harris depends on window/derivative smoothing and thresholds; too low → noise, too high → missed corners. NMS is needed to avoid clusters of duplicates.</p>
+  <p><strong>Scale blindness:</strong> a single-scale detector misses blobs/corners whose natural size differs from the filter; use scale-space when size varies.</p>
+  <p><strong>Photometric changes:</strong> raw gradient responses can vary with contrast/illumination; robust pipelines combine detection with normalization/invariant descriptors.</p>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>In terms of the eigenvalues of the Harris structure tensor, what distinguishes a flat region, an edge, and a corner?
+    <details><summary>Answer</summary><p>Flat: both small. Edge: one large and one small (change mainly in one direction). Corner: both large (significant change in two directions).</p></details>
+  </li>
+  <li>What is the purpose of non-maximum suppression in corner detection?
+    <details><summary>Answer</summary><p>To keep only local peak responses so each corner is represented once with better localization, rather than many adjacent pixels exceeding the threshold.</p></details>
+  </li>
+  <li>Why does blob detection search over multiple scales (σ)?
+    <details><summary>Answer</summary><p>Because blobs can have different physical sizes; a response peaks when the filter scale matches the blob’s characteristic scale, so multi-scale search finds blobs of varying sizes.</p></details>
+  </li>
+  <li>How does DoG relate to LoG in practice?
+    <details><summary>Answer</summary><p>Difference of Gaussians (difference between Gaussian-blurred images at nearby scales) is an efficient approximation to the scale-normalized Laplacian of Gaussian used to find space-scale extrema.</p></details>
+  </li>
+</ol>
+
+<h2>Labs &amp; next steps</h2>
+<ul>
+  <li><a href="../labs/lab05-harris.html">L3a — Harris response &amp; NMS</a></li>
+  <li><a href="../labs/lab06-sift-matching.html">L4a preview — from keypoints to descriptors/matching</a> (see Lesson 04)</li>
+</ul>
+<p>Next we turn detected keypoints into rich, comparable descriptions with SIFT.</p>
+
+<div class="next"><p><strong>Checkpoint 3 (part 1):</strong> gradients reveal local structure; Harris finds corners via the structure tensor and NMS; LoG/DoG finds blobs as scale-space extrema.</p></div>
+
+<div class="labnav"><a href="002-geometric-transformations-warping.html">← Lesson 02</a><a href="004-sift-feature-detectors-descriptors.html">Lesson 04 · SIFT →</a></div>
+</main>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L5a — Hough voting</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+</head>
+<body data-page="lab" data-lesson="L5a">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lab L5a · 4 pts</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead"><p class="kicker">Unit 3 · Companion lab</p><h1>Hough voting</h1><p class="objective">You can map image edge points into <code>(θ,ρ)</code> parameter space and identify a line from accumulated votes.</p></header>
+
+<h2>Interactive demo</h2>
+<p>Points include inliers on a line plus outliers. Each point votes for all <code>ρ = x cosθ + y sinθ</code> across θ. The accumulator peak (brightest) corresponds to the dominant line.</p>
+<div class="fig">
+  <div class="fig-controls">
+    <label>Outliers <input id="outN" type="range" min="0" max="12" step="1" value="4"></label>
+    <label>Noise <input id="noise" type="range" min="0" max="6" step="1" value="1"></label>
+    <button id="regen" type="button">Resample</button>
+  </div>
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.5rem">
+    <div><div style="font-size:.7rem;color:var(--ink-faint);text-transform:uppercase">Image points &amp; detected line</div><canvas id="img" width="260" height="220" style="width:260px;height:220px;border:1px solid var(--rule);background:var(--card)"></canvas></div>
+    <div><div style="font-size:.7rem;color:var(--ink-faint);text-transform:uppercase">Accumulator (θ, ρ)</div><canvas id="acc" width="260" height="220" style="width:260px;height:220px;border:1px solid var(--rule);background:var(--card)"></canvas></div>
+  </div>
+  <output id="info" style="display:block;margin-top:.5rem"></output>
+  <figcaption><strong>Many points, one peak.</strong> Collinear points produce intersecting sinusoids in parameter space; votes concentrate at the line’s <code>(θ,ρ)</code>.</figcaption>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>Why is the normal form <code>ρ = x cosθ + y sinθ</code> preferred over <code>y = mx + b</code> for Hough line detection?
+    <details><summary>Answer</summary><p>Because it can represent all lines including vertical ones with finite parameters, and it provides a bounded, well-behaved parameterization for the accumulator.</p></details>
+  </li>
+  <li>If two different lines are present in the image, what would you expect to see in the accumulator?
+    <details><summary>Answer</summary><p>Two distinct peaks (local maxima) at different <code>(θ,ρ)</code> cells, each receiving votes from points lying on its corresponding line.</p></details>
+  </li>
+</ol>
+
+<div class="labnav"><a href="../lessons/005-model-fitting-hough-ransac.html">← Lesson 05</a><a href="lab08-ransac.html">Lab L5b · RANSAC →</a></div>
+</main>
+<script>
+(function(){
+  var ic=document.getElementById('img'), ac=document.getElementById('acc');
+  var ictx=ic.getContext('2d'), actx=ac.getContext('2d');
+  var pts=[], seed=1; function rand(){ seed=(seed*1664525+1013904223)%4294967296; return seed/4294967296; }
+  function gen(){
+    seed=(Math.random()*1e9)|0; pts=[]; var outN=+document.getElementById('outN').value, noise=+document.getElementById('noise').value;
+    // line: y = 0.4x + 40
+    for(var i=0;i<18;i++){ var x=20+i*12; var y=0.4*x+40 + (rand()*2-1)*noise; pts.push({x:x,y:y,inl:true}); }
+    for(var i=0;i<outN;i++){ pts.push({x:20+rand()*220,y:20+rand()*180,inl:false}); }
+  }
+  function render(){
+    var W=260,H=220; ictx.clearRect(0,0,W,H); actx.clearRect(0,0,W,H);
+    var thetas=180, rhos=220, acc=[]; var diag=Math.hypot(W,H), maxR=1;
+    for(var t=0;t<thetas;t++){acc[t]=new Array(rhos).fill(0);} 
+    pts.forEach(function(p){
+      for(var ti=0;ti<thetas;ti++){ var th=(ti/thetas)*Math.PI; var rho=p.x*Math.cos(th)+p.y*Math.sin(th); var ri=Math.floor(((rho+diag)/(2*diag))*(rhos-1)); if(ri>=0&&ri<rhos){ acc[ti][ri]++; if(acc[ti][ri]>maxR) maxR=acc[ti][ri]; }}
+    });
+    // draw accumulator
+    for(var ti=0;ti<thetas;ti++) for(var ri=0;ri<rhos;ri++){ var v=acc[ti][ri]; var c=Math.round((v/maxR)*255); actx.fillStyle='rgb('+c+','+Math.round(c*0.5)+','+Math.round(c*0.2)+')'; actx.fillRect(ti*(W/thetas), ri*(H/rhos), Math.ceil(W/thetas), Math.ceil(H/rhos)); }
+    // peak
+    var bt=0,br=0; for(var ti=0;ti<thetas;ti++) for(var ri=0;ri<rhos;ri++) if(acc[ti][ri]>acc[bt][br]){bt=ti;br=ri;}
+    var th=(bt/thetas)*Math.PI, rho=((br/(rhos-1))*2*diag)-diag;
+    // draw points and line
+    pts.forEach(function(p){ ictx.fillStyle=p.inl?'#1f5f7a':'#888'; ictx.beginPath(); ictx.arc(p.x,H-p.y,3,0,Math.PI*2); ictx.fill(); });
+    ictx.strokeStyle='#a3231f'; ictx.lineWidth=2; ictx.beginPath();
+    // draw line rho = x cos th + y sin th
+    for(var x=0;x<W;x+=2){ var y=(rho - x*Math.cos(th))/(Math.sin(th)||1e-6); var py=H-y; if(x===0) ictx.moveTo(x,py); else ictx.lineTo(x,py); }
+    ictx.stroke();
+    actx.strokeStyle='#1f5f7a'; actx.strokeRect(bt*(W/thetas)-2, br*(H/rhos)-2, 6, 6);
+    document.getElementById('info').textContent='Peak at θ≈'+(th*180/Math.PI).toFixed(1)+'°, ρ≈'+rho.toFixed(1)+'  (votes='+maxR+'). Red line shows detected model.';
+  }
+  document.getElementById('regen').addEventListener('click', function(){gen();render();});
+  ['outN','noise'].forEach(function(id){document.getElementById(id).addEventListener('input',function(){gen();render();});});
+  gen(); render();
+})();
+</script>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

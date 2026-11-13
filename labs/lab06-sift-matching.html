@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L4a — SIFT descriptor &amp; matching intuition</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+</head>
+<body data-page="lab" data-lesson="L4a">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lab L4a · 4 pts</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead"><p class="kicker">Unit 3 · Companion lab</p><h1>SIFT descriptor &amp; matching intuition</h1><p class="objective">You can see how gradient-orientation histograms form a descriptor and why the ratio test rejects ambiguous matches.</p></header>
+
+<h2>Interactive demo</h2>
+<p>Three simplified “descriptors” (8-bin orientation histograms, normalized) represent patches A, B, and C. B is a rotated/lighting-tweaked version of A; C is different. Compare L2 distances and the ratio test.</p>
+<div class="fig">
+  <div class="fig-controls">
+    <label>Rotate B bins <input id="rot" type="range" min="0" max="7" step="1" value="1"></label>
+    <label>Lighting scale on B <input id="light" type="range" min="0.6" max="1.6" step="0.1" value="1.2"></label>
+  </div>
+  <canvas id="cv" width="700" height="230" style="width:100%;max-width:700px;height:auto;border:1px solid var(--rule);background:var(--card)"></canvas>
+  <pre id="out" style="margin-top:.5rem"></pre>
+  <figcaption><strong>Compare normalized histograms.</strong> Canonical orientation/rotation alignment and normalization keep A↔B close; a different pattern (C) stays farther. The ratio test asks if the best match is clearly better than the second-best.</figcaption>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>Two candidate matches have distances 0.30 and 0.32. What does the ratio test suggest?
+    <details><summary>Answer</summary><p>The ratio 0.30/0.32 ≈ 0.94 is high (close to 1), meaning the best match is not much better than the alternative — likely ambiguous, so it should be rejected.</p></details>
+  </li>
+  <li>Why does L2-normalizing a descriptor help with illumination changes?
+    <details><summary>Answer</summary><p>Uniform scaling of gradient magnitudes (e.g. contrast/brightness changes that scale responses) scales the descriptor vector; normalization removes that global scale so comparisons focus on the pattern/orientation distribution.</p></details>
+  </li>
+</ol>
+
+<div class="labnav"><a href="../lessons/004-sift-feature-detectors-descriptors.html">← Lesson 04</a><a href="../lessons/005-model-fitting-hough-ransac.html">Lesson 05 · Hough &amp; RANSAC →</a></div>
+</main>
+<script>
+(function(){
+  var base=[0.05,0.1,0.6,0.2,0.05,0.0,0.0,0.0];
+  var Cpat=[0.1,0.1,0.1,0.1,0.2,0.3,0.05,0.05];
+  function norm(v){ var s=0; v.forEach(function(x){s+=x*x;}); s=Math.sqrt(s)||1; return v.map(function(x){return x/s;}); }
+  function rotate(v,r){ var out=[]; for(var i=0;i<8;i++) out[i]=v[(i-r+8)%8]; return out; }
+  function dist(a,b){ var s=0; for(var i=0;i<a.length;i++){ var d=a[i]-b[i]; s+=d*d; } return Math.sqrt(s); }
+  function drawHist(ctx,x,y,w,h,vec,color,label){
+    var bw=w/8; ctx.fillStyle=getComputedStyle(document.body).color; ctx.font='12px ui-monospace,monospace'; ctx.fillText(label,x,y-6);
+    for(var i=0;i<8;i++){ var bh=vec[i]* (h-10); ctx.fillStyle=color; ctx.fillRect(x+i*bw, y+h-bh, bw-2, bh); ctx.strokeStyle='rgba(120,120,120,.4)'; ctx.strokeRect(x+i*bw, y, bw-2, h); }
+  }
+  function render(){
+    var r=+document.getElementById('rot').value, l=+document.getElementById('light').value;
+    var A=norm(base.slice());
+    var B=norm(rotate(base.map(function(x){return x*l;}), r));
+    var C=norm(Cpat.slice());
+    var dAB=dist(A,B), dAC=dist(A,C), dBC=dist(B,C);
+    var best=Math.min(dAB,dAC), second=Math.max(dAB,dAC); var ratio=best/second;
+    var cv=document.getElementById('cv'), ctx=cv.getContext('2d'); ctx.clearRect(0,0,700,230);
+    drawHist(ctx,30,40,160,140,A,'rgba(31,95,122,.7)','A (reference)');
+    drawHist(ctx,250,40,160,140,B,'rgba(163,35,31,.7)','B (rotated/scaled)');
+    drawHist(ctx,470,40,160,140,C,'rgba(120,120,120,.7)','C (different)');
+    document.getElementById('out').textContent=
+      'L2(A,B)='+dAB.toFixed(3)+'   L2(A,C)='+dAC.toFixed(3)+'   L2(B,C)='+dBC.toFixed(3)+
+      '\nA vs {B,C}: best='+best.toFixed(3)+'  second='+second.toFixed(3)+'  ratio='+ratio.toFixed(3)+'  '+(ratio<0.8?'→ distinctive match (keep)':'→ ambiguous (reject)');
+  }
+  document.getElementById('rot').addEventListener('input',render); document.getElementById('light').addEventListener('input',render); render();
+})();
+</script>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

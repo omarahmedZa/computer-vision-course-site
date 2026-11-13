@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>05 — Model Fitting (Hough Transform, RANSAC)</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+<meta name="description" content="Fitting lines/circles with the Hough transform and robust estimation with RANSAC; parameter spaces, voting, inliers and outliers.">
+</head>
+<body data-lesson="005">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lesson 05 / 08</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead">
+  <p class="kicker">Unit 3 · Local features and robust fitting · Lesson 5 of 8</p>
+  <h1>Model Fitting (Hough Transform, RANSAC)</h1>
+  <p class="objective">You can fit lines/circles with Hough voting and estimate models robustly with RANSAC under outliers.</p>
+</header>
+
+<h2>Why this matters</h2>
+<p class="lede">Edges and feature matches are noisy. Some points belong to the structure you want (a line, a circle, a geometric transform) and others are <strong>outliers</strong>. Least-squares fits can be pulled badly off-target by a few bad points.</p>
+<p>Hough transforms and RANSAC are classic answers: Hough turns shape detection into <em>voting in parameter space</em>; RANSAC repeatedly hypothesizes a model from minimal samples and keeps the one with the most <em>inlier</em> support. Both ideas are central to robust geometry (including registration, Lesson 7).</p>
+
+<h2>The one core idea</h2>
+<p><strong>Hough:</strong> map each evidence point to all parameter values consistent with it and accumulate votes; peaks correspond to models supported by many points. <strong>RANSAC:</strong> assume data = inliers + outliers, fit models from small random subsets, count consensus (inliers within a threshold), and return the best-supported model — trading certainty for robustness.</p>
+
+<div class="keybox">
+  <span class="sym">Hough = vote in parameter space · RANSAC = hypothesize-and-test with consensus</span>
+  <p>Both separate “explains many points” from “explains this particular noisy set,” but by different mechanisms.</p>
+</div>
+
+<h2>How it actually works</h2>
+
+<h3>1) Hough transform for lines</h3>
+<p>A line can be parameterized as <code>ρ = x cosθ + y sinθ</code>, where <code>ρ</code> is the perpendicular distance from origin and <code>θ</code> the angle of the normal. A single image point <code>(x,y)</code> is consistent with infinitely many lines → in <code>(θ,ρ)</code> parameter space it traces a sinusoidal curve.</p>
+<p><strong>Voting:</strong> discretize <code>(θ,ρ)</code> into an accumulator. For each edge point, increment all accumulator cells on its curve. Cells with many votes indicate parameters supported by many collinear points. Detect peaks to recover lines. (Slope-intercept <code>y=mx+b</code> is intuitive but cannot represent vertical lines cleanly; the normal form is preferred.)</p>
+
+<h3>2) Hough for circles (intuition)</h3>
+<p>A circle <code>(x-a)^2 + (y-b)^2 = r^2</code> has three parameters <code>(a,b,r)</code>. Each edge point votes for possible centers (and radii); with known radius it becomes a 2D vote for centers (each point votes on a circle in parameter space), and with unknown radius the accumulator becomes 3D and more expensive. More parameters → larger/sparser accumulator and more computation.</p>
+
+<h3>3) RANSAC (RANdom SAmple Consensus)</h3>
+<p>Algorithm sketch for fitting model <code>M</code> (e.g. a line needs 2 points, a homography needs 4 correspondences):</p>
+<ol>
+  <li><strong>Sample:</strong> randomly pick the minimal number of points to determine <code>M</code>.</li>
+  <li><strong>Hypothesize:</strong> fit <code>M</code> to that sample.</li>
+  <li><strong>Test/score:</strong> count <strong>inliers</strong> — all data points whose error/distance to <code>M</code> is below threshold <code>τ</code>.</li>
+  <li><strong>Keep best:</strong> if this consensus set is largest so far, save <code>M</code> (often refit on all inliers).</li>
+  <li><strong>Repeat</strong> for <code>N</code> iterations; return the best model.</li>
+</ol>
+<p><strong>Iteration intuition:</strong> if <code>w</code> is the inlier ratio and <code>s</code> the minimal sample size, the probability a random sample is all-inlier is <code>w^s</code>, so the probability of at least one good sample in <code>N</code> trials is <code>1 - (1-w^s)^N</code>. Solve for <code>N</code> to reach desired confidence — more outliers or larger <code>s</code> means more iterations.</p>
+
+<h3>4) Inliers, outliers, and parameter spaces</h3>
+<p><strong>Inliers</strong> fit the true underlying model within noise/threshold; <strong>outliers</strong> do not (mismatches, wrong structures, clutter). Hough localizes dense support in parameter space; RANSAC explicitly searches for the largest self-consistent subset. Both assume the correct model explains many points simultaneously.</p>
+
+<h2>Worked examples</h2>
+
+<h3>Example 1 — Hough voting intuition</h3>
+<p>Three collinear edge points each vote along different sinusoids in <code>(θ,ρ)</code> space, but all three curves intersect at the same <code>(θ*,ρ*)</code> representing their common line. A fourth, off-line point produces a curve that may cross others but not at the same peak — the accumulator peak still identifies the dominant line.</p>
+
+<h3>Example 2 — RANSAC for a line</h3>
+<p>10 points: 7 lie near a line, 3 are far away. Sample 2 points: if both are inliers (likely), the fitted line passes close to the other 5 inliers → ~7 inliers total. If a sample includes an outlier, the line is skewed and gathers few inliers. After enough iterations the 7-inlier model wins and can be refit on those inliers for accuracy.</p>
+
+<h3>Example 3 — Iterations</h3>
+<p>Want 99% confidence, <code>w=0.5</code> inliers, line needs <code>s=2</code>. Probability a sample is all-inlier <code>=0.25</code>. Need <code>N</code> with <code>1-(0.75)^N ≥ 0.99</code> → <code>N ≥ log(0.01)/log(0.75) ≈ 16.4</code>, so ~17 iterations. If <code>w</code> drops to 0.3, <code>w^2=0.09</code> and <code>N</code> rises to ~49 — robustness costs iterations when outliers dominate.</p>
+
+<h2>The trap</h2>
+<div class="callout">
+  <span class="label">Common pitfalls</span>
+  <p><strong>Hough resolution/scale:</strong> coarse bins merge distinct lines; fine bins fragment votes and need more points/memory. Parameter range and discretization matter (and dimensionality grows with model complexity).</p>
+  <p><strong>RANSAC threshold and iterations:</strong> <code>τ</code> too small rejects noisy inliers, too large admits outliers. Too few iterations can miss the correct model; degenerate samples (e.g. nearly coincident points) must be handled.</p>
+  <p><strong>Multiple structures:</strong> a single run finds one dominant model. To find several, run sequentially removing inliers, or use multi-model variants.</p>
+  <p><strong>Assuming inliers are a majority without checking:</strong> RANSAC works when a model has enough support, but if the true structure is weakly represented, consensus may pick the wrong thing.</p>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>In the Hough transform for lines, what does a single edge point contribute to the <code>(θ,ρ)</code> accumulator?
+    <details><summary>Answer</summary><p>A vote along the curve of all <code>(θ,ρ)</code> line parameters consistent with that point (a sinusoid in normal form), rather than a single cell.</p></details>
+  </li>
+  <li>Why is RANSAC robust to outliers compared with fitting a model to all points at once?
+    <details><summary>Answer</summary><p>It fits hypotheses to minimal random subsets and evaluates them by how many points agree (inliers); outliers rarely form a larger consensus set than the true model, so the best-supported hypothesis is selected.</p></details>
+  </li>
+  <li>If the inlier ratio decreases, what happens to the number of RANSAC iterations needed for the same confidence, and why?
+    <details><summary>Answer</summary><p>It increases, because the probability <code>w^s</code> that a minimal sample contains only inliers drops, so more trials are required to be likely to draw at least one all-inlier sample.</p></details>
+  </li>
+</ol>
+
+<h2>Labs &amp; next steps</h2>
+<ul>
+  <li><a href="../labs/lab07-hough.html">L5a — Hough voting</a></li>
+  <li><a href="../labs/lab08-ransac.html">L5b — RANSAC line fitting</a></li>
+</ul>
+
+<div class="next"><p><strong>Checkpoint 3 recap:</strong> Hough detects shapes by parameter-space voting; RANSAC finds models with maximum consensus — both are foundational for robust geometric estimation.</p></div>
+
+<div class="labnav"><a href="004-sift-feature-detectors-descriptors.html">← Lesson 04</a><a href="006-image-blending.html">Lesson 06 · Image Blending →</a></div>
+</main>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

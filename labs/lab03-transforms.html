@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L2a — Transform matrices &amp; composition</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+</head>
+<body data-page="lab" data-lesson="L2a">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lab L2a · 4 pts</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead"><p class="kicker">Unit 2 · Companion lab</p><h1>Transform matrices &amp; composition</h1><p class="objective">You can build homogeneous matrices for translation, rotation, scale, and shear, and see why composition order matters.</p></header>
+
+<h2>Interactive demo</h2>
+<p>Adjust parameters to form <code>M = T·R·S·Sh</code> (applied right-to-left to points of a unit shape). Compare the transformed shape and the resulting matrix entries.</p>
+<div class="fig">
+  <div class="fig-controls">
+    <label>tx <input id="tx" type="range" min="-80" max="80" step="5" value="30"></label>
+    <label>ty <input id="ty" type="range" min="-80" max="80" step="5" value="10"></label>
+    <label>θ° <input id="ang" type="range" min="-180" max="180" step="5" value="20"></label>
+    <label>sx <input id="sx" type="range" min="0.3" max="2" step="0.1" value="1"></label>
+    <label>sy <input id="sy" type="range" min="0.3" max="2" step="0.1" value="1"></label>
+    <label>shear kx <input id="k" type="range" min="-1" max="1" step="0.1" value="0"></label>
+    <button id="reset" type="button">Reset</button>
+  </div>
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start;margin-top:.5rem">
+    <canvas id="cv" width="360" height="260" style="width:360px;height:260px;border:1px solid var(--rule);background:var(--card)"></canvas>
+    <pre id="mat" style="margin:0;min-width:220px"></pre>
+  </div>
+  <figcaption><strong>Order:</strong> shear/scale/rotate/translate are composed as <code>T·R·S·Sh</code> here; change parameters to see how linear parts and translation combine. Parallel lines remain parallel for affine maps.</figcaption>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>Why can a 2×2 matrix not represent translation, but a 3×3 homogeneous matrix can?
+    <details><summary>Answer</summary><p>A 2×2 linear map always sends the origin to the origin, so it cannot translate. Homogeneous coordinates add a constant column (and a third row/coordinate) so translation becomes a matrix multiplication.</p></details>
+  </li>
+  <li>If <code>M = R·T</code> is applied to point <code>p</code> as <code>M p</code>, which operation happens first?
+    <details><summary>Answer</summary><p>Translation <code>T</code> happens first, then rotation <code>R</code>, because matrix multiplication applies right-to-left to the vector.</p></details>
+  </li>
+</ol>
+
+<div class="labnav"><a href="../lessons/002-geometric-transformations-warping.html">← Lesson 02</a><a href="lab04-warping-interpolation.html">Lab L2b · Warping &amp; interpolation →</a></div>
+</main>
+<script>
+(function(){
+  var cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  function mul(A,B){ var C=[[0,0,0],[0,0,0],[0,0,0]]; for(var i=0;i<3;i++) for(var j=0;j<3;j++) for(var k=0;k<3;k++) C[i][j]+=A[i][k]*B[k][j]; return C; }
+  function apply(M,p){ return [M[0][0]*p[0]+M[0][1]*p[1]+M[0][2], M[1][0]*p[0]+M[1][1]*p[1]+M[1][2]]; }
+  function fmt(M){ return M.map(function(r){return '['+r.map(function(v){return ('      '+v.toFixed(2)).slice(-7);}).join(' ')+']';}).join('\n'); }
+  function render(){
+    var tx=+document.getElementById('tx').value, ty=+document.getElementById('ty').value;
+    var th=(+document.getElementById('ang').value)*Math.PI/180, c=Math.cos(th), s=Math.sin(th);
+    var sx=+document.getElementById('sx').value, sy=+document.getElementById('sy').value, k=+document.getElementById('k').value;
+    var T=[[1,0,tx],[0,1,ty],[0,0,1]], R=[[c,-s,0],[s,c,0],[0,0,1]], S=[[sx,0,0],[0,sy,0],[0,0,1]], Sh=[[1,k,0],[0,1,0],[0,0,1]];
+    var M=mul(T,mul(R,mul(S,Sh)));
+    var shape=[[0,0],[60,0],[60,60],[0,60],[0,0],[30,0],[30,60],[0,60],[0,30],[60,30]];
+    ctx.clearRect(0,0,360,260);
+    ctx.save(); ctx.translate(90,170); ctx.scale(1,-1);
+    ctx.strokeStyle='rgba(120,120,120,0.4)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(-80,0); ctx.lineTo(260,0); ctx.moveTo(0,-120); ctx.lineTo(0,80); ctx.stroke();
+    function draw(pts, color, dash){ ctx.strokeStyle=color; ctx.setLineDash(dash||[]); ctx.beginPath(); pts.forEach(function(p,i){ var q=apply(M,p); if(i===0) ctx.moveTo(q[0],q[1]); else ctx.lineTo(q[0],q[1]); }); ctx.stroke(); ctx.setLineDash([]); }
+    ctx.strokeStyle='rgba(120,120,120,0.7)'; ctx.beginPath(); shape.forEach(function(p,i){ if(i===0) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]); }); ctx.stroke();
+    draw(shape, '#a3231f', []);
+    ctx.restore();
+    ctx.fillStyle=getComputedStyle(document.body).color; ctx.font='12px ui-monospace,monospace';
+    ctx.fillText('gray: original   red: transformed (M·p)', 10, 20);
+    document.getElementById('mat').textContent='M = T·R·S·Sh\n'+fmt(M);
+  }
+  ['tx','ty','ang','sx','sy','k'].forEach(function(id){document.getElementById(id).addEventListener('input',render);});
+  document.getElementById('reset').addEventListener('click',function(){tx.value=30;ty.value=10;ang.value=20;sx.value=1;sy.value=1;k.value=0;render();});
+  render();
+})();
+</script>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

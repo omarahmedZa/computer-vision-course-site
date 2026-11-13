@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L7a — End-to-end registration pipeline</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+</head>
+<body data-page="lab" data-lesson="L7a">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lab L7a · 4 pts</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead"><p class="kicker">Unit 4 · Companion lab</p><h1>End-to-end registration pipeline</h1><p class="objective">You can trace correspondences → robust affine estimate → inverse warp and judge alignment quality.</p></header>
+
+<h2>Interactive demo</h2>
+<p>A “moving” shape is synthetically transformed to create a target. We show tentative correspondences (with some outliers you can add), estimate an affine transform robustly (RANSAC-like consensus on residuals), and warp the moving image onto the target for overlay.</p>
+<div class="fig">
+  <div class="fig-controls">
+    <label>Outlier matches <input id="outN" type="range" min="0" max="4" step="1" value="1"></label>
+    <button id="solve" type="button">Estimate &amp; warp</button>
+    <button id="reset" type="button">Reset</button>
+  </div>
+  <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-top:.5rem">
+    <div><div style="font-size:.7rem;color:var(--ink-faint);text-transform:uppercase">Target</div><canvas id="tgt" width="150" height="150" style="width:150px;height:150px;border:1px solid var(--rule)"></canvas></div>
+    <div><div style="font-size:.7rem;color:var(--ink-faint);text-transform:uppercase">Moving</div><canvas id="mov" width="150" height="150" style="width:150px;height:150px;border:1px solid var(--rule)"></canvas></div>
+    <div><div style="font-size:.7rem;color:var(--ink-faint);text-transform:uppercase">Warped overlay</div><canvas id="out" width="150" height="150" style="width:150px;height:150px;border:1px solid var(--rule)"></canvas></div>
+  </div>
+  <output id="info" style="display:block;margin-top:.5rem"></output>
+  <figcaption><strong>Pipeline in miniature.</strong> Correct correspondences yield a transform with low residuals and good overlay; outliers reduce consensus unless rejected.</figcaption>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>Why is inverse warping used when producing the registered image?
+    <details><summary>Answer</summary><p>It ensures every output (target-frame) pixel is assigned a value by sampling from the corresponding source location, avoiding holes that forward warping can create.</p></details>
+  </li>
+  <li>If RANSAC finds few inliers among correspondences, what might that indicate?
+    <details><summary>Answer</summary><p>Possible causes include many incorrect matches, an inappropriate motion model, insufficient overlap/texture, or strong non-rigid/parallax effects not explained by the chosen transform.</p></details>
+  </li>
+</ol>
+
+<div class="labnav"><a href="../lessons/007-image-registration.html">← Lesson 07</a><a href="../lessons/008-deep-learning-computer-vision.html">Lesson 08 · Deep Learning →</a></div>
+</main>
+<script>
+(function(){
+  var N=150, tcv=document.getElementById('tgt'), mcv=document.getElementById('mov'), ocv=document.getElementById('out');
+  var tctx=tcv.getContext('2d'), mctx=mcv.getContext('2d'), octx=ocv.getContext('2d');
+  function drawBase(ctx, pts, color){ ctx.clearRect(0,0,N,N); ctx.fillStyle='#f2f2f2'; ctx.fillRect(0,0,N,N); ctx.strokeStyle=color; ctx.lineWidth=3; ctx.strokeRect(30,30,70,50); ctx.beginPath(); ctx.moveTo(40,100); ctx.lineTo(110,70); ctx.lineTo(110,120); ctx.closePath(); ctx.stroke(); ctx.fillStyle=color; pts.forEach(function(p){ctx.beginPath();ctx.arc(p[0],p[1],4,0,Math.PI*2);ctx.fill();}); }
+  // true affine mapping moving->target (approx)
+  var Atrue=[[0.96,-0.17,18],[0.17,0.96,8]];
+  function applyA(A,p){ return [A[0][0]*p[0]+A[0][1]*p[1]+A[0][2], A[1][0]*p[0]+A[1][1]*p[1]+A[1][2]]; }
+  var basePts=[[30,30],[100,30],[100,80],[30,80],[40,100],[110,70],[110,120]];
+  function getCorr(){
+    var outN=+document.getElementById('outN').value; var corr=[];
+    basePts.forEach(function(pm,i){ var pt=applyA(Atrue,pm); var ptn=[pt[0]+(Math.random()*2-1), pt[1]+(Math.random()*2-1)]; corr.push({m:pm,t:ptn,ok:true}); });
+    for(var i=0;i<outN;i++){ var j=(Math.random()*corr.length)|0; corr[j]={m:corr[j].m, t:[20+Math.random()*110,20+Math.random()*110], ok:false}; }
+    return corr;
+  }
+  var corr=getCorr();
+  function drawAll(){
+    var tPts=corr.map(function(c){return c.t;}), mPts=corr.map(function(c){return c.m;});
+    drawBase(tctx,tPts,'#1f5f7a'); drawBase(mctx,mPts,'#a3231f');
+    // draw correspondences on target view (lines conceptually)
+    tctx.strokeStyle='rgba(120,120,120,0.5)'; corr.forEach(function(c){ tctx.beginPath(); tctx.moveTo(c.t[0],c.t[1]); var mt=applyA(Atrue,c.m); tctx.lineTo(mt[0],mt[1]); tctx.stroke(); });
+  }
+  function solveAffine(sample){ // least squares from 3+ pairs
+    // solve for [a,b,tx; c,d,ty]
+    var n=sample.length; // normal equations for 6 params
+    var M=[[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0],[0,0,0,0,0,0]];
+    var v=[0,0,0,0,0,0];
+    sample.forEach(function(p){ var x=p.m[0],y=p.m[1],xp=p.t[0],yp=p.t[1]; var r1=[x,y,1,0,0,0], r2=[0,0,0,x,y,1];
+      for(var i=0;i<6;i++){ for(var j=0;j<6;j++){ M[i][j]+=r1[i]*r1[j]+r2[i]*r2[j]; } v[i]+=r1[i]*xp + r2[i]*yp; }
+    });
+    // naive Gauss elimination
+    for(var i=0;i<6;i++){
+      var piv=i; for(var r=i+1;r<6;r++) if(Math.abs(M[r][i])>Math.abs(M[piv][i])) piv=r;
+      var tmp=M[i]; M[i]=M[piv]; M[piv]=tmp; var tv=v[i]; v[i]=v[piv]; v[piv]=tv;
+      var d=M[i][i]||1e-9; for(var j=i;j<6;j++) M[i][j]/=d; v[i]/=d;
+      for(var r=0;r<6;r++) if(r!==i){ var f=M[r][i]; for(var j=i;j<6;j++) M[r][j]-=f*M[i][j]; v[r]-=f*v[i]; }
+    }
+    return [[v[0],v[1],v[2]],[v[3],v[4],v[5]]];
+  }
+  function invertAffine(A){ var a=A[0][0],b=A[0][1],tx=A[0][2],c=A[1][0],d=A[1][1],ty=A[1][2]; var det=a*d-b*c || 1e-9; var ia=d/det, ib=-b/det, ic=-c/det, id=a/det; return [[ia,ib, -(ia*tx+ib*ty)], [ic,id, -(ic*tx+id*ty)]]; }
+  function warpAndOverlay(Aest){
+    // render moving into image data
+    mctx.clearRect(0,0,N,N); drawBase(mctx,corr.map(function(c){return c.m;}),'#a3231f');
+    var src=mctx.getImageData(0,0,N,N); var tgt=tctx.getImageData(0,0,N,N); var out=octx.createImageData(N,N);
+    var inv=invertAffine(Aest);
+    for(var y=0;y<N;y++) for(var x=0;x<N;x++){
+      var sp=applyA(inv,[x,y]); var sx=Math.round(sp[0]), sy=Math.round(sp[1]); var idx=(y*N+x)*4;
+      var tr=tgt.data[idx], tg=tgt.data[idx+1], tb=tgt.data[idx+2];
+      if(sx>=0&&sy>=0&&sx<N&&sy<N){ var si=(sy*N+sx)*4; var sr=src.data[si], sg=src.data[si+1], sb=src.data[si+2];
+        out.data[idx]=Math.round(0.5*tr+0.5*sr); out.data[idx+1]=Math.round(0.5*tg+0.5*sg); out.data[idx+2]=Math.round(0.5*tb+0.5*sb); out.data[idx+3]=255;
+      } else { out.data[idx]=tr; out.data[idx+1]=tg; out.data[idx+2]=tb; out.data[idx+3]=255; }
+    }
+    octx.putImageData(out,0,0);
+  }
+  function estimate(){
+    // simple RANSAC over triplets
+    var best=null; var tau=5;
+    for(var it=0;it<40;it++){
+      var s=[]; while(s.length<3){ var c=corr[(Math.random()*corr.length)|0]; if(s.indexOf(c)<0) s.push(c); }
+      var A=solveAffine(s); var inl=[]; corr.forEach(function(c){ var p=applyA(A,c.m); var e=Math.hypot(p[0]-c.t[0], p[1]-c.t[1]); if(e<tau) inl.push({c:c,e:e}); });
+      if(!best || inl.length>best.inl.length) best={A:A,inl:inl};
+    }
+    var Aref=best.inl.length>=3?solveAffine(best.inl.map(function(x){return x.c;})):best.A;
+    warpAndOverlay(Aref);
+    var mean=0; best.inl.forEach(function(x){mean+=x.e;}); mean=best.inl.length?mean/best.inl.length:0;
+    document.getElementById('info').textContent='RANSAC inliers: '+best.inl.length+'/'+corr.length+'  mean residual (inliers): '+mean.toFixed(2)+' px. Overlay shows target (blue) blended with warped moving (red).';
+  }
+  document.getElementById('solve').addEventListener('click', estimate);
+  document.getElementById('reset').addEventListener('click', function(){ corr=getCorr(); drawAll(); octx.clearRect(0,0,N,N); document.getElementById('info').textContent='Reset. Click "Estimate & warp".'; });
+  document.getElementById('outN').addEventListener('input', function(){ corr=getCorr(); drawAll(); octx.clearRect(0,0,N,N); document.getElementById('info').textContent='Correspondences updated.'; });
+  drawAll(); document.getElementById('info').textContent='Click "Estimate & warp" to run the pipeline.';
+})();
+</script>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>

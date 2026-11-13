@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L6a — Alpha, feathering &amp; pyramids</title>
+<link rel="stylesheet" href="../assets/lesson.css?v=1">
+<link rel="stylesheet" href="../assets/figures.css?v=1">
+</head>
+<body data-page="lab" data-lesson="L6a">
+<main>
+<nav class="topline"><a href="../index.html">← Course map</a><span class="pill">Lab L6a · 4 pts</span><span class="grow"></span><button type="button" data-theme-toggle>◐ auto</button></nav>
+<header class="masthead"><p class="kicker">Unit 4 · Companion lab</p><h1>Alpha, feathering &amp; pyramid intuition</h1><p class="objective">You can compare hard seams, feathered blends, and multi-band intuition on overlapping strips with different exposure.</p></header>
+
+<h2>Interactive demo</h2>
+<p>Two synthetic strips overlap: B is brighter (exposure difference). Compare a hard seam, feathered alpha blend, and a simplified multi-band blend (low frequencies blended widely, high frequencies narrowly).</p>
+<div class="fig">
+  <div class="fig-controls">
+    <label>Feather width <input id="fw" type="range" min="0" max="60" step="2" value="20"></label>
+    <label>Exposure diff <input id="exp" type="range" min="0" max="60" step="5" value="30"></label>
+  </div>
+  <canvas id="cv" width="700" height="260" style="width:100%;max-width:700px;height:auto;border:1px solid var(--rule);background:var(--card)"></canvas>
+  <figcaption><strong>Seam visibility.</strong> Hard cuts show steps; feathering smooths but can soften; multi-band (approx.) transitions brightness broadly while keeping local detail crisper.</figcaption>
+</div>
+
+<h2>Retrieval check</h2>
+<ol class="quiz">
+  <li>Why might a very wide feather be undesirable even if it hides the seam?
+    <details><summary>Answer</summary><p>It blends over a large region, which can blur details, reduce contrast, or create ghosting/double exposure where structures don’t align perfectly.</p></details>
+  </li>
+  <li>What is the key idea behind multi-band (pyramid) blending compared to single-scale feathering?
+    <details><summary>Answer</summary><p>It blends different spatial frequency bands with different transition widths (broad for low frequencies, narrow for high frequencies), reducing seams in color/exposure while preserving fine detail.</p></details>
+  </li>
+</ol>
+
+<div class="labnav"><a href="../lessons/006-image-blending.html">← Lesson 06</a><a href="../lessons/007-image-registration.html">Lesson 07 · Image Registration →</a></div>
+</main>
+<script>
+(function(){
+  var cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  function clamp(v){return Math.max(0,Math.min(255,v));}
+  function makeStripes(bright, phase){
+    var w=320,h=60, data=new Array(w*h);
+    for(var y=0;y<h;y++) for(var x=0;x<w;x++){
+      var base = ((Math.floor((x+phase)/20)+Math.floor(y/20))%2)? 90:160;
+      var detail = 15*Math.sin((x+phase)*0.3)*Math.sin(y*0.3);
+      data[y*w+x]=clamp(base+detail+bright);
+    }
+    return {w:w,h:h,data:data};
+  }
+  function get(img,x,y){ x=Math.max(0,Math.min(img.w-1,x)); y=Math.max(0,Math.min(img.h-1,y)); return img.data[y*img.w+x]; }
+  function blur1DRow(arr,w,h){
+    var out=new Array(w*h); for(var y=0;y<h;y++) for(var x=0;x<w;x++){ var s=0,c=0; for(var dx=-2;dx<=2;dx++){ var xx=x+dx; if(xx>=0&&xx<w){ s+=arr[y*w+xx]; c++; } } out[y*w+x]=s/c; } return out;
+  }
+  function render(){
+    var fw=+document.getElementById('fw').value, exp=+document.getElementById('exp').value;
+    var A=makeStripes(0,0), B=makeStripes(exp,0);
+    var W=700,H=260; ctx.clearRect(0,0,W,H);
+    function drawPanel(y0,label,mode){
+      ctx.fillStyle=getComputedStyle(document.body).color; ctx.font='12px ui-monospace,monospace'; ctx.fillText(label,10,y0+14);
+      var ow=320, oh=60, ox=10, oy=y0+20, seam=170; // overlap region
+      var out=new Array(ow*oh);
+      // build low/high for multiband approx
+      var Al=blur1DRow(A.data,ow,oh), Bl=blur1DRow(B.data,ow,oh);
+      for(var y=0;y<oh;y++) for(var x=0;x<ow;x++){
+        var aPix=get(A,x,y), bPix=get(B,x,y);
+        var alpha;
+        if(mode==='hard') alpha = x < seam ? 1 : 0;
+        else {
+          var t=(x-(seam-fw))/(2*fw||1); alpha = 1 - Math.max(0,Math.min(1,t));
+        }
+        var v;
+        if(mode==='multi'){
+          var alphaLow; var fwL=Math.max(fw,40); var tL=(x-(seam-fwL))/(2*fwL); alphaLow=1-Math.max(0,Math.min(1,tL));
+          var fwH=Math.max(4,fw*0.3); var tH=(x-(seam-fwH))/(2*fwH); var alphaHigh=1-Math.max(0,Math.min(1,tH));
+          var aLow=Al[y*ow+x], bLow=Bl[y*ow+x], aHigh=aPix-aLow, bHigh=bPix-bLow;
+          v = (alphaLow*aLow + (1-alphaLow)*bLow) + (alphaHigh*aHigh + (1-alphaHigh)*bHigh);
+        } else {
+          v = alpha*aPix + (1-alpha)*bPix;
+        }
+        out[y*ow+x]=clamp(v);
+      }
+      for(var y=0;y<oh;y++) for(var x=0;x<ow;x++){ var v=Math.round(out[y*ow+x]); ctx.fillStyle='rgb('+v+','+v+','+v+')'; ctx.fillRect(ox+x,oy+y,1,1); }
+      ctx.strokeStyle='rgba(163,35,31,0.7)'; ctx.strokeRect(ox+seam,oy,1,oh);
+    }
+    drawPanel(0,'Hard seam (α step at red line)', 'hard');
+    drawPanel(85,'Feathered alpha blend', 'feather');
+    drawPanel(170,'Multi-band intuition (wide low-freq, narrow high-freq)', 'multi');
+  }
+  ['fw','exp'].forEach(function(id){document.getElementById(id).addEventListener('input',render);});
+  render();
+})();
+</script>
+<script src="../assets/course.js?v=1" defer></script>
+</body>
+</html>
